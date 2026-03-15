@@ -10,8 +10,10 @@ import (
 )
 
 type AgentClient struct {
-	ctx  context.Context
-	conn *websocket.Conn
+	ctx      context.Context
+	conn     *websocket.Conn
+	spssPath string
+	dataPath string
 }
 
 func NewAgentClient(ctx context.Context) *AgentClient {
@@ -21,8 +23,11 @@ func NewAgentClient(ctx context.Context) *AgentClient {
 }
 
 // Connect opens the WebSocket to the Ruby server and sends the initialization payload.
-func (c *AgentClient) Connect(url string, prompt string) error {
+func (c *AgentClient) Connect(url string, prompt string, spssPath string, dataPath string) error {
 	log.Printf("Connecting to Agent Server: %s", url)
+
+	c.spssPath = spssPath
+	c.dataPath = dataPath
 
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {

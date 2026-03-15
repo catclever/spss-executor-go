@@ -4,6 +4,8 @@
   import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime.js';
 
   let serverUrl: string = "ws://localhost:9292";
+  let spssPath: string = "/Applications/IBM SPSS Statistics/SPSS Statistics.app/Contents/MacOS/stats";
+  let dataPath: string = "/Users/kael/Data/example.sav";
   let promptText: string = "我想要计算 gender 变量各个类别的数量以及所占百分比";
   let isConnected: boolean = false;
   let statusText: string = "Disconnected";
@@ -59,8 +61,8 @@
   function connect() {
     if (isConnected) return;
     
-    if (!serverUrl || !promptText) {
-      addLog("error", "URL and Prompt are required!");
+    if (!serverUrl || !promptText || !spssPath || !dataPath) {
+      addLog("error", "All fields are required!");
       return;
     }
 
@@ -68,7 +70,7 @@
     statusText = "Connecting...";
     addLog("system", "Dialing " + serverUrl + " ...");
 
-    ConnectServer(serverUrl, promptText).catch(err => {
+    ConnectServer(serverUrl, promptText, spssPath, dataPath).catch(err => {
       addLog("error", "Failed to connect: " + err);
       isConnected = false;
       statusText = "Disconnected";
@@ -82,6 +84,16 @@
     <div class="form-group">
       <label for="url">Ruby Server URL</label>
       <input id="url" type="text" bind:value={serverUrl} disabled={isConnected} />
+    </div>
+
+    <div class="form-group">
+      <label for="spss">SPSS Binary Path</label>
+      <input id="spss" type="text" bind:value={spssPath} disabled={isConnected} />
+    </div>
+
+    <div class="form-group">
+      <label for="data">Dataset Path (.sav)</label>
+      <input id="data" type="text" bind:value={dataPath} disabled={isConnected} />
     </div>
 
     <div class="form-group">

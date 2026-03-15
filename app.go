@@ -30,6 +30,6 @@ func (a *App) Greet(name string) string {
 }
 
 // ConnectServer initiates the WebSocket connection to the Ruby Agent Server
-func (a *App) ConnectServer(url string, prompt string) error {
-	return a.client.Connect(url, prompt)
+func (a *App) ConnectServer(url string, prompt string, spssPath string, dataPath string) error {
+	return a.client.Connect(url, prompt, spssPath, dataPath)
 }
