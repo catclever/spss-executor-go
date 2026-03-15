@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"runtime"
+
 	"spss-executor-go/backend"
 )
 
@@ -30,6 +32,14 @@ func (a *App) Greet(name string) string {
 }
 
 // ConnectServer initiates the WebSocket connection to the Ruby Agent Server
-func (a *App) ConnectServer(url string, prompt string, spssPath string, dataPath string) error {
-	return a.client.Connect(url, prompt, spssPath, dataPath)
+func (a *App) ConnectServer(url string, prompt string, spssPath string, dataPath string, usePD bool, vmName string) error {
+	return a.client.Connect(url, prompt, spssPath, dataPath, usePD, vmName)
+}
+
+// GetDevEnvironment returns current OS and architecture data for frontend UI logic
+func (a *App) GetDevEnvironment() map[string]string {
+	return map[string]string{
+		"os":   runtime.GOOS,
+		"arch": runtime.GOARCH,
+	}
 }

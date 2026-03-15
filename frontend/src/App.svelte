@@ -1,12 +1,18 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { ConnectServer } from '../wailsjs/go/main/App.js';
+  import { ConnectServer, GetDevEnvironment } from '../wailsjs/go/main/App.js';
   import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime.js';
 
+  let osType: string = "";
   let serverUrl: string = "ws://localhost:9292";
-  let spssPath: string = "/Applications/IBM SPSS Statistics/SPSS Statistics.app/Contents/MacOS/stats";
-  let dataPath: string = "/Users/kael/Data/example.sav";
+  let spssPath: string = "";
+  let dataPath: string = "";
   let promptText: string = "我想要计算 gender 变量各个类别的数量以及所占百分比";
+  
+  // Parallels Desktop settings
+  let usePD: boolean = false;
+  let vmName: string = "Windows 11";
+
   let isConnected: boolean = false;
   let statusText: string = "Disconnected";
   
@@ -24,7 +30,22 @@
     }, 100);
   }
 
-  onMount(() => {
+  onMount(async () => {
+    // Detect OS and set defaults
+    try {
+      const env = await GetDevEnvironment();
+      osType = env.os;
+      if (osType === "windows") {
+        spssPath = "C:\\Program Files\\IBM\\SPSS Statistics\\28\\stats.exe";
+        dataPath = "C:\\Data\\example.sav";
+      } else {
+        spssPath = "/Applications/IBM SPSS Statistics/SPSS Statistics.app/Contents/MacOS/stats";
+        dataPath = "/Users/kael/Data/example.sav";
+      }
+    } catch (e) {
+      console.error("Failed to get dev env", e);
+    }
+
     EventsOn("agent:status", (status: string) => {
       statusText = status;
       addLog("info", status);
@@ -70,7 +91,7 @@
     statusText = "Connecting...";
     addLog("system", "Dialing " + serverUrl + " ...");
 
-    ConnectServer(serverUrl, promptText, spssPath, dataPath).catch(err => {
+    ConnectServer(serverUrl, promptText, spssPath, dataPath, usePD, vmName).catch(err => {
       addLog("error", "Failed to connect: " + err);
       isConnected = false;
       statusText = "Disconnected";
@@ -95,6 +116,22 @@
       <label for="data">Dataset Path (.sav)</label>
       <input id="data" type="text" bind:value={dataPath} disabled={isConnected} />
     </div>
+
+    {#if osType === 'darwin' || osType === 'mac'}
+      <div class="form-group pd-toggle">
+        <label>
+          <input type="checkbox" bind:checked={usePD} disabled={isConnected} />
+          <span class="checkbox-label">Use Parallels Desktop VM</span>
+        </label>
+      </div>
+      
+      {#if usePD}
+        <div class="form-group indent">
+          <label for="vmname">VM Name</label>
+          <input id="vmname" type="text" bind:value={vmName} disabled={isConnected} />
+        </div>
+      {/if}
+    {/if}
 
     <div class="form-group">
       <label for="prompt">Your Goal / Prompt</label>
@@ -168,7 +205,29 @@
     font-weight: 600;
   }
 
-  input, textarea {
+  .pd-toggle label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  
+  .pd-toggle input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .checkbox-label {
+    color: #f9e2af;
+  }
+
+  .indent {
+    margin-left: 10px;
+    border-left: 2px solid #45475a;
+    padding-left: 10px;
+  }
+
+  input[type="text"], textarea {
     background-color: #11111b;
     border: 1px solid #313244;
     color: #cdd6f4;

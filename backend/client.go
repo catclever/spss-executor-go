@@ -14,6 +14,8 @@ type AgentClient struct {
 	conn     *websocket.Conn
 	spssPath string
 	dataPath string
+	usePD    bool
+	vmName   string
 }
 
 func NewAgentClient(ctx context.Context) *AgentClient {
@@ -23,11 +25,13 @@ func NewAgentClient(ctx context.Context) *AgentClient {
 }
 
 // Connect opens the WebSocket to the Ruby server and sends the initialization payload.
-func (c *AgentClient) Connect(url string, prompt string, spssPath string, dataPath string) error {
+func (c *AgentClient) Connect(url string, prompt string, spssPath string, dataPath string, usePD bool, vmName string) error {
 	log.Printf("Connecting to Agent Server: %s", url)
 
 	c.spssPath = spssPath
 	c.dataPath = dataPath
+	c.usePD = usePD
+	c.vmName = vmName
 
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
@@ -83,8 +87,8 @@ func (c *AgentClient) listen() {
 			syntax, _ := payload["syntax"].(string)
 			log.Printf("Executing SPSS syntax:\n%s\n", syntax)
 
-			// Invoke the real runner with configured paths
-			outputStr, err := RunSPSS(c.spssPath, c.dataPath, syntax)
+			// Invoke the real runner with configured paths and PD settings
+			outputStr, err := RunSPSS(c.spssPath, c.dataPath, syntax, c.usePD, c.vmName)
 			
 			status := "success"
 			if err != nil {
