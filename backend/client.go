@@ -78,19 +78,27 @@ func (c *AgentClient) listen() {
 		// Emit the exact message to the frontend React/Svelte side
 		runtime.EventsEmit(c.ctx, "agent:message", payload)
 
-		// Specifically handle execute_syntax by mimicking SPSS (Mock for now)
+		// Handle execute_syntax by invoking real SPSS runner
 		if msgType == "execute_syntax" {
 			syntax, _ := payload["syntax"].(string)
 			log.Printf("Executing SPSS syntax:\n%s\n", syntax)
 
-			// TODO: Actually invoke local SPSS `stats` here
-			// For now, mock success:
-			mockSuccess := map[string]interface{}{
-				"type":   "execution_result",
-				"status": "success",
-				"output": "[Mock Runner] Output for command:\n" + syntax,
+			// Invoke the real runner with configured paths
+			outputStr, err := RunSPSS(c.spssPath, c.dataPath, syntax)
+			
+			status := "success"
+			if err != nil {
+				status = "error"
+				outputStr = err.Error() + "\n" + outputStr
 			}
-			c.conn.WriteJSON(mockSuccess)
+
+			executionResult := map[string]interface{}{
+				"type":   "execution_result",
+				"status": status,
+				"output": outputStr,
+			}
+			c.conn.WriteJSON(executionResult)
+			
 		} else if msgType == "finished" {
 			log.Printf("Agent finished. Closing connection.")
 			break
