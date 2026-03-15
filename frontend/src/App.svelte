@@ -19,6 +19,19 @@
   // To store the stream of messages and executions
   let logs: { type: string, text: string, time: string }[] = [];
 
+  // Reactive statement to auto-switch default paths based on Parallels toggle
+  $: if (osType === 'darwin' || osType === 'mac') {
+    if (usePD) {
+      if (spssPath === "/Applications/IBM SPSS Statistics/SPSS Statistics.app/Contents/MacOS/stats") {
+        spssPath = "C:\\Program Files\\IBM\\SPSS Statistics\\28\\stats.exe";
+      }
+    } else {
+      if (spssPath === "C:\\Program Files\\IBM\\SPSS Statistics\\28\\stats.exe" || spssPath === "") {
+        spssPath = "/Applications/IBM SPSS Statistics/SPSS Statistics.app/Contents/MacOS/stats";
+      }
+    }
+  }
+
   function addLog(type: string, text: string) {
     const time = new Date().toLocaleTimeString();
     logs = [...logs, { type, text, time }];
@@ -108,7 +121,9 @@
     </div>
 
     <div class="form-group">
-      <label for="spss">SPSS Binary Path</label>
+      <label for="spss">
+        {usePD ? 'SPSS Binary Path (Inside VM)' : 'SPSS Binary Path'}
+      </label>
       <input id="spss" type="text" bind:value={spssPath} disabled={isConnected} />
     </div>
 
