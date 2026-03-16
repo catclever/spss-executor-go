@@ -130,12 +130,8 @@ func (c *AgentClient) listen() {
 			syntax, _ := payload["syntax"].(string)
 			log.Printf("Executing SPSS syntax:\n%s\n", syntax)
 
-			runtime.EventsEmit(c.ctx, "agent:status", "Waiting SPSS...")
-
 			// Invoke the real runner with configured paths and PD settings
 			outputStr, err := RunSPSS(c.runCtx, c.spssPath, c.dataPath, syntax, c.usePD, c.vmName)
-			
-			runtime.EventsEmit(c.ctx, "agent:status", "Waiting Agent...")
 
 			status := "success"
 			if err != nil {
@@ -155,6 +151,7 @@ func (c *AgentClient) listen() {
 				"message": outputStr,
 			}
 			runtime.EventsEmit(c.ctx, "agent:message", frontendOutputMsg)
+			runtime.EventsEmit(c.ctx, "agent:status", "Waiting Agent...")
 
 			c.conn.WriteJSON(executionResult)
 			
