@@ -12,9 +12,16 @@ import (
 // RunSPSS executes the given SPSS syntax in an isolated temporary directory.
 func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string, usePD bool, vmName string) (string, error) {
 	// 1. Create unique temporary directory
-	// Create inside the current working directory to guarantee Parallels VM can access it via the \Mac\Host share (system /tmp is often not shared)
-	cwd, _ := os.Getwd()
-	tempDir, err := os.MkdirTemp(cwd, "spss_agent_*")
+	// Create inside the user's home directory to guarantee Parallels VM can access it via the \Mac\Host share,
+	// while avoiding the Go project folder to prevent `wails dev` from triggering immediate hot-reloads.
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home dir: %w", err)
+	}
+	baseTempDir := filepath.Join(homeDir, ".spss_agent_temp")
+	os.MkdirAll(baseTempDir, 0755)
+
+	tempDir, err := os.MkdirTemp(baseTempDir, "run_*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp dir: %w", err)
 	}
