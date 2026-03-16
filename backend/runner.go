@@ -42,7 +42,7 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 	// 2. Prepare the syntax with injected GET FILE, PRINTBACK prevention, and OMS
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("GET FILE='%s'.\n", effectiveDataPath))
-	sb.WriteString("SET PRINTBACK=NO.\n")
+	sb.WriteString("SET PRINTBACK=YES.\n")
 	sb.WriteString(fmt.Sprintf("OMS /SELECT ALL /DESTINATION FORMAT=TEXT OUTFILE='%s'.\n", effectiveOutputPath))
 	sb.WriteString("EXECUTE.\n\n")
 	sb.WriteString(agentSyntax)
