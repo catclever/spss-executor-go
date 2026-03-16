@@ -210,13 +210,19 @@
     statusText = "Connecting...";
     addLog("system", "Dialing " + serverUrl + " ...");
 
-    const llmConfig = JSON.stringify({
+    const configObj: any = {
       format: llmFormat,
       base_url: llmBaseUrl,
       model: llmModel,
-      api_key: llmApiKey,
-      temperature: llmTemperature
-    });
+      api_key: llmApiKey
+    };
+    
+    // Explicitly omit temperature if model is kimi-2.5 
+    if (!llmModel.toLowerCase().includes("kimi-2.5")) {
+      configObj.temperature = llmTemperature;
+    }
+    
+    const llmConfig = JSON.stringify(configObj);
 
     ConnectServer(serverUrl, promptText, spssPath, dataPath, usePD, vmName, workingNote, llmConfig).catch(err => {
       addLog("error", "Failed to connect: " + err);
@@ -384,7 +390,7 @@
           </div>
           <div class="form-group">
             <label for="llmTemperature">Temperature</label>
-            <input id="llmTemperature" type="number" min="0" max="2" step="0.1" bind:value={llmTemperature} disabled={isConnected} />
+            <input id="llmTemperature" type="number" min="0" max="2" step="0.1" bind:value={llmTemperature} disabled={isConnected || llmModel.toLowerCase().includes('kimi-2.5')} title={llmModel.toLowerCase().includes('kimi-2.5') ? "Temperature adjustment is locked for the Kimi-2.5 API" : ""} />
           </div>
         </div>
       </div>
