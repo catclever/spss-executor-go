@@ -125,7 +125,9 @@
       if (msg.type === "execute_syntax") {
         addLog("syntax", "Executing Syntax:\n" + msg.syntax);
       } else if (msg.type === "spss_output") {
-        addLog("spss-out", "SPSS Output:\n" + msg.message);
+        addLog("spss-out", msg.message);
+      } else if (msg.type === "thinking") {
+        addLog("thinking", msg.message);
       } else if (msg.type === "status") {
         addLog("info", "Agent: " + msg.message);
       } else if (msg.type === "finished") {
