@@ -6,8 +6,12 @@ export function CancelExecution() {
   return window['go']['main']['App']['CancelExecution']();
 }
 
-export function ConnectServer(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['main']['App']['ConnectServer'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function ConnectServer(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['main']['App']['ConnectServer'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+}
+
+export function FetchDictionary(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['FetchDictionary'](arg1, arg2, arg3, arg4);
 }
 
 export function GetDevEnvironment() {
@@ -16,4 +20,12 @@ export function GetDevEnvironment() {
 
 export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
+}
+
+export function SelectDataFile() {
+  return window['go']['main']['App']['SelectDataFile']();
+}
+
+export function SelectSPSSBinary() {
+  return window['go']['main']['App']['SelectSPSSBinary']();
 }

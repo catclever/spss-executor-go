@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { ConnectServer, GetDevEnvironment, CancelExecution } from '../wailsjs/go/main/App.js';
+  import { ConnectServer, GetDevEnvironment, CancelExecution, SelectSPSSBinary, SelectDataFile, FetchDictionary } from '../wailsjs/go/main/App.js';
   import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime.js';
 
   let osType: string = "";
@@ -18,6 +18,10 @@
 
   let isConnected: boolean = false;
   let statusText: string = "Disconnected";
+  
+  // Session tracking variables
+  let activeSessionDataPath: string = "";
+  let workingNote: string = "";
   
   // To store the stream of messages and executions
   let logs: { type: string, text: string, time: string }[] = [];
@@ -140,7 +144,7 @@
     EventsOff("agent:message");
   });
 
-  function connect() {
+  async function connect() {
     if (isConnected) return;
     
     if (!serverUrl || !promptText || !spssPath || !dataPath) {
@@ -148,11 +152,30 @@
       return;
     }
 
+    // New Session Logic: Fetch dictionary if dataset changed
+    if (dataPath !== activeSessionDataPath) {
+      isConnected = true;
+      statusText = "Syncing Metadata...";
+      addLog("system", "Fetching Data Dictionary locally without AI...");
+      
+      try {
+        const fetchResult = await FetchDictionary(spssPath, dataPath, usePD, vmName);
+        workingNote = "DATA DICTIONARY / METADATA:\n" + fetchResult;
+        activeSessionDataPath = dataPath;
+        addLog("success", "Metadata synced successfully. Starting AI Session...");
+      } catch (err) {
+        addLog("error", "Failed to fetch Dictionary: " + err);
+        isConnected = false;
+        statusText = "Disconnected";
+        return;
+      }
+    }
+
     isConnected = true;
     statusText = "Connecting...";
     addLog("system", "Dialing " + serverUrl + " ...");
 
-    ConnectServer(serverUrl, promptText, spssPath, dataPath, usePD, vmName).catch(err => {
+    ConnectServer(serverUrl, promptText, spssPath, dataPath, usePD, vmName, workingNote).catch(err => {
       addLog("error", "Failed to connect: " + err);
       isConnected = false;
       statusText = "Disconnected";
@@ -165,6 +188,49 @@
     CancelExecution().catch(err => {
       addLog("error", "Failed to cancel: " + err);
     });
+  }
+
+  async function handleSelectSPSS() {
+    try {
+      const selectedPath = await SelectSPSSBinary();
+      if (selectedPath && selectedPath.trim() !== "") {
+        spssPath = selectedPath;
+      }
+    } catch (err) {
+      addLog("error", "Failed to select SPSS binary: " + err);
+    }
+  }
+
+  async function handleSelectData() {
+    try {
+      const selectedPath = await SelectDataFile();
+      if (selectedPath && selectedPath.trim() !== "") {
+        dataPath = selectedPath;
+      }
+    } catch (err) {
+      addLog("error", "Failed to select Data dataset: " + err);
+    }
+  }
+
+  async function copyToClipboard(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      // Optional visual feedback
+    } catch (err) {
+      console.error("Failed to copy", err);
+    }
+  }
+
+  function startNewSession() {
+    // If running, kill it
+    if (isConnected) {
+      CancelExecution();
+    }
+    isConnected = false;
+    activeSessionDataPath = "";
+    workingNote = "";
+    logs = [];
+    statusText = "Disconnected";
   }
 </script>
 
@@ -180,12 +246,18 @@
       <label for="spss">
         {usePD ? 'SPSS Binary Path (Inside VM)' : 'SPSS Binary Path'}
       </label>
-      <input id="spss" type="text" bind:value={spssPath} disabled={isConnected} />
+      <div class="input-with-button">
+        <input id="spss" type="text" bind:value={spssPath} disabled={isConnected} />
+        <button class="btn-select" on:click={handleSelectSPSS} disabled={isConnected || usePD}>Select</button>
+      </div>
     </div>
 
     <div class="form-group">
       <label for="data">Dataset Path (.sav)</label>
-      <input id="data" type="text" bind:value={dataPath} disabled={isConnected} />
+      <div class="input-with-button">
+        <input id="data" type="text" bind:value={dataPath} disabled={isConnected || activeSessionDataPath !== ""} />
+        <button class="btn-select" on:click={handleSelectData} disabled={isConnected || activeSessionDataPath !== ""}>Select</button>
+      </div>
     </div>
 
     {#if osType === 'darwin' || osType === 'mac'}
@@ -217,6 +289,10 @@
       <button class="btn-cancel" on:click={cancelTask}>
         Cancel Task
       </button>
+    {:else if activeSessionDataPath !== ""}
+      <button class="btn-new-session" on:click={startNewSession}>
+        Start New Session
+      </button>
     {/if}
 
     <div class="status-indicator">
@@ -231,8 +307,24 @@
     
     {#each logs as log}
       <div class="log-entry type-{log.type}">
-        <div class="log-time">[{log.time}]</div>
-        <div class="log-text">{log.text}</div>
+        <div class="log-header">
+          <span class="tag">{log.type.toUpperCase().replace("-", " ")}</span>
+          <span class="log-time">[{log.time}]</span>
+          {#if log.type === 'syntax'}
+            <button class="btn-copy" on:click={() => copyToClipboard(log.text)}>Copy</button>
+          {/if}
+        </div>
+        
+        {#if log.type === 'spss-out'}
+          <details>
+            <summary>Click to view SPSS Execution Output</summary>
+            <div class="log-text spss-box">{log.text}</div>
+          </details>
+        {:else if log.type === 'syntax'}
+          <div class="log-text syntax-box">{log.text}</div>
+        {:else}
+          <div class="log-text">{log.text}</div>
+        {/if}
       </div>
     {/each}
   </div>
@@ -324,6 +416,37 @@
     cursor: not-allowed;
   }
 
+  .input-with-button {
+    display: flex;
+    gap: 8px;
+  }
+
+  .input-with-button input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .btn-select {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 6px;
+    padding: 0 12px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+  }
+
+  .btn-select:hover:not(:disabled) {
+    background-color: #45475a;
+    border-color: #89b4fa;
+  }
+
+  .btn-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .btn-connect {
     background-color: #89b4fa;
     color: #11111b;
@@ -369,6 +492,26 @@
     transform: scale(0.98);
   }
 
+  .btn-new-session {
+    background-color: #a6e3a1;
+    color: #11111b;
+    border: none;
+    padding: 12px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+    margin-top: -10px;
+  }
+
+  .btn-new-session:hover {
+    background-color: #94e2d5;
+  }
+
+  .btn-new-session:active {
+    transform: scale(0.98);
+  }
+
   .status-indicator {
     margin-top: auto;
     font-size: 0.85rem;
@@ -407,17 +550,90 @@
     white-space: pre-wrap;
   }
 
-  .log-entry.type-info { border-left-color: #89b4fa; }
-  .log-entry.type-syntax { border-left-color: #cba6f7; background-color: #313244; }
-  .log-entry.type-spss-out { border-left-color: #fab387; background-color: #1e1e2e; color: #bac2de; font-size: 0.8rem; }
-  .log-entry.type-error { border-left-color: #f38ba8; color: #f38ba8; }
-  .log-entry.type-success { border-left-color: #a6e3a1; }
-  .log-entry.type-system { border-left-color: #f9e2af; }
+  .log-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .tag {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background-color: #313244;
+    color: #cdd6f4;
+  }
 
   .log-time {
     font-size: 0.7rem;
     color: #6c7086;
-    margin-bottom: 4px;
     user-select: none;
+    flex: 1;
   }
+
+  .btn-copy {
+    background-color: #45475a;
+    color: #cdd6f4;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .btn-copy:hover {
+    background-color: #585b70;
+  }
+
+  details summary {
+    cursor: pointer;
+    color: #bac2de;
+    font-weight: 600;
+    outline: none;
+    user-select: none;
+    margin-bottom: 6px;
+  }
+
+  details[open] summary {
+    margin-bottom: 12px;
+  }
+
+  .spss-box {
+    background-color: #11111b;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #313244;
+  }
+
+  .syntax-box {
+    background-color: #cdd6f4;
+    color: #11111b;
+    padding: 12px;
+    border-radius: 6px;
+    font-weight: 600;
+  }
+
+  .log-entry.type-info { border-left-color: #89b4fa; }
+  .log-entry.type-info .tag { background-color: #89b4fa; color: #11111b; }
+  
+  .log-entry.type-thinking { border-left-color: #8caaee; background-color: rgba(140, 170, 238, 0.1); }
+  .log-entry.type-thinking .tag { background-color: #8caaee; color: #11111b; }
+
+  .log-entry.type-syntax { border-left-color: #cba6f7; background-color: #313244; }
+  .log-entry.type-syntax .tag { background-color: #cba6f7; color: #11111b; }
+
+  .log-entry.type-spss-out { border-left-color: #fab387; background-color: #1e1e2e; color: #bac2de; font-size: 0.8rem; }
+  .log-entry.type-spss-out .tag { background-color: #fab387; color: #11111b; }
+
+  .log-entry.type-error { border-left-color: #f38ba8; color: #f38ba8; }
+  .log-entry.type-error .tag { background-color: #f38ba8; color: #11111b; }
+
+  .log-entry.type-success { border-left-color: #a6e3a1; }
+  .log-entry.type-success .tag { background-color: #a6e3a1; color: #11111b; }
+
+  .log-entry.type-system { border-left-color: #f9e2af; }
+  .log-entry.type-system .tag { background-color: #f9e2af; color: #11111b; }
 </style>

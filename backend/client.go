@@ -30,7 +30,7 @@ func NewAgentClient(ctx context.Context) *AgentClient {
 }
 
 // Connect opens the WebSocket to the Ruby server and sends the initialization payload.
-func (c *AgentClient) Connect(url string, prompt string, spssPath string, dataPath string, usePD bool, vmName string) error {
+func (c *AgentClient) Connect(url string, prompt string, spssPath string, dataPath string, usePD bool, vmName string, workingNote string) error {
 	log.Printf("Connecting to Agent Server: %s", url)
 
 	c.spssPath = spssPath
@@ -78,9 +78,10 @@ func (c *AgentClient) Connect(url string, prompt string, spssPath string, dataPa
 
 	// Send Init Payload
 	initMsg := map[string]interface{}{
-		"type":   "init",
-		"prompt": prompt,
-		"schema": `{"vars": ["gender", "age"]}`, // Example schema
+		"type":         "init",
+		"prompt":       prompt,
+		"schema":       `{"vars": ["gender", "age"]}`, // Example schema
+		"working_note": workingNote,
 	}
 	if err := c.conn.WriteJSON(initMsg); err != nil {
 		return err
@@ -146,6 +147,13 @@ func (c *AgentClient) listen() {
 			runtime.EventsEmit(c.ctx, "agent:message", frontendOutputMsg)
 
 			c.conn.WriteJSON(executionResult)
+			
+			// Optimization 4: Visually indicate agent is reasoning about the results
+			thinkingMsg := map[string]interface{}{
+				"type":    "thinking",
+				"message": "Calling Model...",
+			}
+			runtime.EventsEmit(c.ctx, "agent:message", thinkingMsg)
 			
 		} else if msgType == "finished" {
 			log.Printf("Agent finished. Closing connection.")

@@ -3,8 +3,14 @@
 
 export function CancelExecution():Promise<void>;
 
-export function ConnectServer(arg1:string,arg2:string,arg3:string,arg4:string,arg5:boolean,arg6:string):Promise<void>;
+export function ConnectServer(arg1:string,arg2:string,arg3:string,arg4:string,arg5:boolean,arg6:string,arg7:string):Promise<void>;
+
+export function FetchDictionary(arg1:string,arg2:string,arg3:boolean,arg4:string):Promise<string>;
 
 export function GetDevEnvironment():Promise<Record<string, string>>;
 
 export function Greet(arg1:string):Promise<string>;
+
+export function SelectDataFile():Promise<string>;
+
+export function SelectSPSSBinary():Promise<string>;
