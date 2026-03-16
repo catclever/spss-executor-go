@@ -804,10 +804,10 @@
   .log-entry.type-syntax { border-left-color: #cba6f7; background-color: #313244; }
   .log-entry.type-syntax .tag { background-color: #cba6f7; color: #11111b; }
 
-  .log-entry.type-final-syntax { border-left-color: #cba6f7; background-color: #cba6f7; color: #11111b; }
-  .log-entry.type-final-syntax .tag { background-color: #11111b; color: #cba6f7; }
+  .log-entry.type-final-syntax { border-left-color: #938aa9; background-color: #938aa9; color: #11111b; }
+  .log-entry.type-final-syntax .tag { background-color: #11111b; color: #938aa9; }
   .log-entry.type-final-syntax .log-time { color: #313244; }
-  .log-entry.type-final-syntax .btn-copy { background-color: #11111b; color: #cba6f7; }
+  .log-entry.type-final-syntax .btn-copy { background-color: #11111b; color: #938aa9; }
   .log-entry.type-final-syntax .btn-copy:hover { background-color: #313244; }
 
   .log-entry.type-spss-out { border-left-color: #fab387; background-color: #1e1e2e; color: #bac2de; font-size: 0.8rem; }
