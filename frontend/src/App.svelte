@@ -217,8 +217,8 @@
       api_key: llmApiKey
     };
     
-    // Explicitly omit temperature if model is kimi-2.5 
-    if (!llmModel.toLowerCase().includes("kimi-2.5")) {
+    // Explicitly omit temperature if model is kimi / moonshot
+    if (!llmModel.toLowerCase().includes("kimi") && !llmModel.toLowerCase().includes("moonshot")) {
       configObj.temperature = llmTemperature;
     }
     
@@ -390,7 +390,7 @@
           </div>
           <div class="form-group">
             <label for="llmTemperature">Temperature</label>
-            <input id="llmTemperature" type="number" min="0" max="2" step="0.1" bind:value={llmTemperature} disabled={isConnected || llmModel.toLowerCase().includes('kimi-2.5')} title={llmModel.toLowerCase().includes('kimi-2.5') ? "Temperature adjustment is locked for the Kimi-2.5 API" : ""} />
+            <input id="llmTemperature" type="number" min="0" max="2" step="0.1" bind:value={llmTemperature} disabled={isConnected || llmModel.toLowerCase().includes('kimi') || llmModel.toLowerCase().includes('moonshot')} title={(llmModel.toLowerCase().includes('kimi') || llmModel.toLowerCase().includes('moonshot')) ? "Temperature adjustment is locked for Kimi APIs" : ""} />
           </div>
         </div>
       </div>
