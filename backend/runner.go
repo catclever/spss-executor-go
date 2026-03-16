@@ -45,6 +45,7 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 	sb.WriteString("EXECUTE.\n\n")
 	sb.WriteString(agentSyntax)
 	sb.WriteString("\nOMSEND.\n")
+	sb.WriteString("FINISH.\n")
 
 	syntaxContent := sb.String()
 	syntaxFilePath := filepath.Join(tempDir, "script.sps")
