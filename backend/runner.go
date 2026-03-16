@@ -25,11 +25,20 @@ func RunSPSS(spssExePath, dataFilePath, agentSyntax string, usePD bool, vmName s
 		effectiveDataPath = "\\\\Mac\\Host" + strings.ReplaceAll(dataFilePath, "/", "\\")
 	}
 
-	// 2. Prepare the syntax with injected GET FILE
+	// Translate output text file path if using Parallels from Mac
+	outputTxtPath := filepath.Join(tempDir, "output.txt")
+	effectiveOutputPath := outputTxtPath
+	if usePD {
+		effectiveOutputPath = "\\\\Mac\\Host" + strings.ReplaceAll(outputTxtPath, "/", "\\")
+	}
+
+	// 2. Prepare the syntax with injected GET FILE and OMS
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("GET FILE='%s'.\n", effectiveDataPath))
+	sb.WriteString(fmt.Sprintf("OMS /SELECT ALL /DESTINATION FORMAT=TEXT OUTFILE='%s'.\n", effectiveOutputPath))
 	sb.WriteString("EXECUTE.\n\n")
 	sb.WriteString(agentSyntax)
+	sb.WriteString("\nOMSEND.\n")
 
 	syntaxContent := sb.String()
 	syntaxFilePath := filepath.Join(tempDir, "script.sps")
@@ -38,30 +47,83 @@ func RunSPSS(spssExePath, dataFilePath, agentSyntax string, usePD bool, vmName s
 		return "", fmt.Errorf("failed to write syntax file: %w", err)
 	}
 
+	// 3. Determine Execution Path (statisticsb vs stats -production silent)
 	var cmd *exec.Cmd
 
-	if usePD {
-		// Parallels Desktop VM execution path translation
-		// E.g., /tmp/spss_agent_xxxx/script.sps -> \\Mac\Host\private\tmp\spss_agent_xxxx\script.sps
-		// Note: Mac's /tmp is actually a symlink to /private/tmp. MkdirTemp usually returns /var/... or /private/var...
-		pdSyntaxPath := "\\\\Mac\\Host" + strings.ReplaceAll(syntaxFilePath, "/", "\\")
-
-		// prlctl exec "Windows 11" "C:\Program Files\IBM\SPSS Statistics\28\stats.exe" -batch -f "\\Mac\Host\private\var\..."
-		cmd = exec.Command("prlctl", "exec", vmName, spssExePath, "-batch", "-f", pdSyntaxPath)
-	} else {
-		// Native execution (Windows or Mac natively)
-		cmd = exec.Command(spssExePath, "-batch", "-f", syntaxFilePath)
-		cmd.Dir = tempDir
+	isWindows := strings.HasSuffix(strings.ToLower(spssExePath), ".exe")
+	batchExeName := "statisticsb"
+	if isWindows {
+		batchExeName = "statisticsb.exe"
 	}
 
-	// Capture output
+	batchExePath := filepath.Join(filepath.Dir(spssExePath), batchExeName)
+	hasBatch := false
+
+	if usePD {
+		checkCmdStr := fmt.Sprintf("if exist \"%s\" (exit 0) else (exit 1)", batchExePath)
+		if err := exec.Command("prlctl", "exec", vmName, "cmd.exe", "/c", checkCmdStr).Run(); err == nil {
+			hasBatch = true
+		}
+	} else {
+		if _, err := os.Stat(batchExePath); err == nil {
+			hasBatch = true
+		}
+	}
+
+	if hasBatch {
+		// Use true Batch Facility (statisticsb)
+		if usePD {
+			pdSyntaxPath := "\\\\Mac\\Host" + strings.ReplaceAll(syntaxFilePath, "/", "\\")
+			cmd = exec.Command("prlctl", "exec", vmName, batchExePath, "-f", pdSyntaxPath)
+		} else {
+			cmd = exec.Command(batchExePath, "-f", syntaxFilePath)
+			cmd.Dir = tempDir
+		}
+	} else {
+		// Use Fallback Production Job XML for stats.exe
+		spjFilePath := filepath.Join(tempDir, "job.spj")
+		effectiveSpjPath := spjFilePath
+		targetSyntaxForSpj := syntaxFilePath
+
+		if usePD {
+			effectiveSpjPath = "\\\\Mac\\Host" + strings.ReplaceAll(spjFilePath, "/", "\\")
+			targetSyntaxForSpj = "\\\\Mac\\Host" + strings.ReplaceAll(syntaxFilePath, "/", "\\")
+		}
+
+		spjContent := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<job error-stop="false" syntax-format="interactive" syntax-symbol="PRAGMA">
+  <output clear="false" print-output="false" print-syntax="false" print-error="false" show-charts="false" export-output="false" />
+  <syntax path="%s" />
+</job>`, targetSyntaxForSpj)
+
+		if err := os.WriteFile(spjFilePath, []byte(spjContent), 0644); err != nil {
+			return "", fmt.Errorf("failed to write spj file: %w", err)
+		}
+
+		if usePD {
+			cmd = exec.Command("prlctl", "exec", vmName, spssExePath, "-production", "silent", effectiveSpjPath)
+		} else {
+			cmd = exec.Command(spssExePath, "-production", "silent", spjFilePath)
+			cmd.Dir = tempDir
+		}
+	}
+
+	// Capture command standard output as a fallback
 	out, err := cmd.CombinedOutput()
 	outputStr := string(out)
 
-	// 4. Handle execution outcome
-	if err != nil {
-		return outputStr, fmt.Errorf("SPSS execution failed: %v", err)
+	// 4. Read the OMS generated text file
+	var resultOutput string
+	outputBytes, readErr := os.ReadFile(outputTxtPath)
+	if readErr == nil {
+		resultOutput = string(outputBytes)
+	} else {
+		resultOutput = fmt.Sprintf("Failed to read SPSS output file: %v\n---\nRaw Execution Output:\n%s", readErr, outputStr)
 	}
 
-	return outputStr, nil
+	if err != nil {
+		return resultOutput, fmt.Errorf("SPSS execution failed: %v\n[Stdout]: %s", err, outputStr)
+	}
+
+	return resultOutput, nil
 }

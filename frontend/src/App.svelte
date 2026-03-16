@@ -26,11 +26,13 @@
   // Only execute this if the user actively toggles it (after load) rather than on initial load
   $: if (isLoaded && (osType === 'darwin' || osType === 'mac')) {
     if (usePD) {
+      // If switching to PD and current path is the Mac default, change to Windows default
       if (spssPath === "/Applications/IBM SPSS Statistics/SPSS Statistics.app/Contents/MacOS/stats") {
         spssPath = "C:\\Program Files\\IBM\\SPSS Statistics\\28\\stats.exe";
       }
     } else {
-      if (spssPath === "C:\\Program Files\\IBM\\SPSS Statistics\\28\\stats.exe" || spssPath === "") {
+      // If switching off PD and current path is the Windows default, change to Mac default
+      if (spssPath === "C:\\Program Files\\IBM\\SPSS Statistics\\28\\stats.exe") {
         spssPath = "/Applications/IBM SPSS Statistics/SPSS Statistics.app/Contents/MacOS/stats";
       }
     }
