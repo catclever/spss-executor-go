@@ -135,6 +135,9 @@
       if (status === "Disconnected" || status === "Cancelled") {
         isConnected = false;
       }
+      if (status !== "Waiting SPSS...") {
+        addLog("info", status);
+      }
     });
 
     EventsOn("agent:error", (error: string) => {
