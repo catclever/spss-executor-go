@@ -135,7 +135,6 @@
       if (status === "Disconnected" || status === "Cancelled") {
         isConnected = false;
       }
-      addLog("info", status);
     });
 
     EventsOn("agent:error", (error: string) => {
