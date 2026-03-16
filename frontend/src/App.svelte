@@ -339,7 +339,7 @@
           <h3>Connection Setup</h3>
           <div class="form-group">
             <label for="url">Ruby Server URL</label>
-            <input id="url" type="text" bind:value={serverUrl} disabled={isConnected} />
+            <input id="url" type="text" bind:value={serverUrl} disabled={isConnected} autocapitalize="none" autocorrect="off" spellcheck="false" />
           </div>
           <div class="form-group">
             <label for="spss">

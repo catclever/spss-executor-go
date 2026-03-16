@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"io"
 
 	"github.com/gorilla/websocket"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -69,9 +70,14 @@ func (c *AgentClient) Connect(url string, prompt string, spssPath string, dataPa
 	c.runCtx, cancel = context.WithCancel(c.ctx)
 	c.cancelFunc = cancel
 
-	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
+	conn, resp, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
-		runtime.EventsEmit(c.ctx, "agent:error", err.Error())
+		errMsg := err.Error()
+		if resp != nil {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			errMsg = fmt.Sprintf("Handshake failed with status %d: %s (Error: %s)", resp.StatusCode, string(bodyBytes), err.Error())
+		}
+		runtime.EventsEmit(c.ctx, "agent:error", errMsg)
 		return err
 	}
 	c.conn = conn
