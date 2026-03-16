@@ -99,7 +99,7 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 		}
 
 		spjContent := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<job xmlns="http://www.ibm.com/software/analytics/spss/xml/production" syntaxErrorHandling="continue" syntaxFormat="interactive" unicode="true">
+<job xmlns="http://www.ibm.com/software/analytics/spss/xml/production" syntaxErrorHandling="halt" syntaxFormat="interactive" unicode="true">
   <output outputFormat="viewer" outputPath="%s"/>
   <syntax syntaxPath="%s"/>
 </job>`, dummySpvPath, targetSyntaxForSpj)
