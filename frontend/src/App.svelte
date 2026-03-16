@@ -33,6 +33,7 @@
   let llmBaseUrl: string = "https://open.bigmodel.cn/api/coding/paas/v4";
   let llmModel: string = "glm-4.7";
   let llmApiKey: string = "";
+  let llmTemperature: number = 0.95;
 
   // Reactive statement to auto-switch default paths based on Parallels toggle
   // Only execute this if the user actively toggles it (after load) rather than on initial load
@@ -60,6 +61,7 @@
   $: if (isLoaded) localStorage.setItem('spssAgent_llmBaseUrl', llmBaseUrl);
   $: if (isLoaded) localStorage.setItem('spssAgent_llmModel', llmModel);
   $: if (isLoaded) localStorage.setItem('spssAgent_llmApiKey', llmApiKey);
+  $: if (isLoaded) localStorage.setItem('spssAgent_llmTemperature', String(llmTemperature));
 
   function addLog(type: string, text: string) {
     const time = new Date().toLocaleTimeString();
@@ -94,6 +96,7 @@
     const savedLlmBaseUrl = localStorage.getItem('spssAgent_llmBaseUrl');
     const savedLlmModel = localStorage.getItem('spssAgent_llmModel');
     const savedLlmApiKey = localStorage.getItem('spssAgent_llmApiKey');
+    const savedLlmTemperature = localStorage.getItem('spssAgent_llmTemperature');
 
     if (savedUrl) serverUrl = savedUrl;
     if (savedPrompt) promptText = savedPrompt;
@@ -103,6 +106,7 @@
     if (savedLlmBaseUrl) llmBaseUrl = savedLlmBaseUrl;
     if (savedLlmModel) llmModel = savedLlmModel;
     if (savedLlmApiKey) llmApiKey = savedLlmApiKey;
+    if (savedLlmTemperature && !isNaN(parseFloat(savedLlmTemperature))) llmTemperature = parseFloat(savedLlmTemperature);
 
     // Detect OS and set defaults only if no saved path exists
     try {
@@ -210,7 +214,8 @@
       format: llmFormat,
       base_url: llmBaseUrl,
       model: llmModel,
-      api_key: llmApiKey
+      api_key: llmApiKey,
+      temperature: llmTemperature
     });
 
     ConnectServer(serverUrl, promptText, spssPath, dataPath, usePD, vmName, workingNote, llmConfig).catch(err => {
@@ -376,6 +381,10 @@
           <div class="form-group">
             <label for="llmApiKey">API Key</label>
             <input id="llmApiKey" type="password" bind:value={llmApiKey} disabled={isConnected} placeholder="Enter API Key" />
+          </div>
+          <div class="form-group">
+            <label for="llmTemperature">Temperature</label>
+            <input id="llmTemperature" type="number" min="0" max="2" step="0.1" bind:value={llmTemperature} disabled={isConnected} />
           </div>
         </div>
       </div>
@@ -556,7 +565,7 @@
     padding-left: 10px;
   }
 
-  input[type="text"], input[type="password"], textarea, select {
+  input[type="text"], input[type="password"], input[type="number"], textarea, select {
     background-color: #11111b;
     border: 1px solid #313244;
     color: #cdd6f4;
