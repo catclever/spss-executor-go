@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // RunSPSS executes the given SPSS syntax in an isolated temporary directory.
@@ -127,7 +128,51 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 		}
 	}
 
-	// Capture command standard output as a fallback
+	// If executing Mac 'open -a', SPSS is notorious for not releasing the process even after FINISH.
+	// We implement a background watchdog that peeks at the output.txt file.
+	// Once "OMSEND." is detected (meaning all analytical outputs have been dumped), we forcefully terminate the process.
+	if !hasBatch && !usePD {
+		// Create a dynamic sub-context we can cancel
+		watchCtx, watchCancel := context.WithCancel(ctx)
+		defer watchCancel()
+		
+		cmd.Start()
+		
+		go func() {
+			for {
+				select {
+				case <-watchCtx.Done():
+					return
+				default:
+					if b, err := os.ReadFile(outputTxtPath); err == nil {
+						if strings.Contains(string(b), "OMSEND.") {
+							// Execution is complete. Kill the SPSS process wrapper.
+							watchCancel()
+							
+							// Find the SPSS Statistics process directly and kill it because open -a spawns it asynchronously
+							exec.Command("pkill", "-9", "-f", "SPSS Statistics").Run()
+							return
+						}
+					}
+					time.Sleep(500 * time.Millisecond)
+				}
+			}
+		}()
+		
+		cmd.Wait()
+		outputStr := "Execution finished. (Output monitored by Watchdog)"
+		
+		var resultOutput string
+		outputBytes, readErr := os.ReadFile(outputTxtPath)
+		if readErr == nil {
+			resultOutput = string(outputBytes)
+		} else {
+			resultOutput = fmt.Sprintf("Failed to read SPSS output file: %v\n---\nRaw Execution Output:\n%s", readErr, outputStr)
+		}
+		return resultOutput, nil
+	}
+
+	// Capture command standard output as a fallback for normal execution
 	out, err := cmd.CombinedOutput()
 	outputStr := string(out)
 
