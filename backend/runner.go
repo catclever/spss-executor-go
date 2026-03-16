@@ -11,7 +11,9 @@ import (
 // RunSPSS executes the given SPSS syntax in an isolated temporary directory.
 func RunSPSS(spssExePath, dataFilePath, agentSyntax string, usePD bool, vmName string) (string, error) {
 	// 1. Create unique temporary directory
-	tempDir, err := os.MkdirTemp("", "spss_agent_*")
+	// Create inside the current working directory to guarantee Parallels VM can access it via the \Mac\Host share (system /tmp is often not shared)
+	cwd, _ := os.Getwd()
+	tempDir, err := os.MkdirTemp(cwd, "spss_agent_*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp dir: %w", err)
 	}
@@ -93,7 +95,9 @@ func RunSPSS(spssExePath, dataFilePath, agentSyntax string, usePD bool, vmName s
 		spjContent := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <job error-stop="false" syntax-format="interactive" syntax-symbol="PRAGMA">
   <output clear="false" print-output="false" print-syntax="false" print-error="false" show-charts="false" export-output="false" />
-  <syntax path="%s" />
+  <syntax-list>
+    <syntax file="%s" />
+  </syntax-list>
 </job>`, targetSyntaxForSpj)
 
 		if err := os.WriteFile(spjFilePath, []byte(spjContent), 0644); err != nil {
