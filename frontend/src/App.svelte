@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { ConnectServer, GetDevEnvironment } from '../wailsjs/go/main/App.js';
+  import { ConnectServer, GetDevEnvironment, CancelExecution } from '../wailsjs/go/main/App.js';
   import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime.js';
 
   let osType: string = "";
@@ -95,6 +95,9 @@
 
     EventsOn("agent:status", (status: string) => {
       statusText = status;
+      if (status === "Disconnected" || status === "Cancelled") {
+        isConnected = false;
+      }
       addLog("info", status);
     });
 
@@ -155,6 +158,14 @@
       statusText = "Disconnected";
     });
   }
+
+  function cancelTask() {
+    if (!isConnected) return;
+    addLog("system", "Sending cancellation signal...");
+    CancelExecution().catch(err => {
+      addLog("error", "Failed to cancel: " + err);
+    });
+  }
 </script>
 
 <main class="app-container">
@@ -201,6 +212,12 @@
     <button class="btn-connect" on:click={connect} disabled={isConnected}>
       {isConnected ? 'Running Agent...' : 'Start Execution'}
     </button>
+
+    {#if isConnected}
+      <button class="btn-cancel" on:click={cancelTask}>
+        Cancel Task
+      </button>
+    {/if}
 
     <div class="status-indicator">
       Status: <span class={isConnected ? 'active' : ''}>{statusText}</span>
@@ -330,6 +347,26 @@
     background-color: #45475a;
     color: #a6adc8;
     cursor: not-allowed;
+  }
+
+  .btn-cancel {
+    background-color: #f38ba8;
+    color: #11111b;
+    border: none;
+    padding: 12px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+    margin-top: -10px; /* pull closer to the connect button */
+  }
+
+  .btn-cancel:hover {
+    background-color: #eba0ac;
+  }
+
+  .btn-cancel:active {
+    transform: scale(0.98);
   }
 
   .status-indicator {

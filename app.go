@@ -36,6 +36,13 @@ func (a *App) ConnectServer(url string, prompt string, spssPath string, dataPath
 	return a.client.Connect(url, prompt, spssPath, dataPath, usePD, vmName)
 }
 
+// CancelExecution requests the backend to forcefully terminate the task and agent websocket
+func (a *App) CancelExecution() {
+	if a.client != nil {
+		a.client.CancelExecution()
+	}
+}
+
 // GetDevEnvironment returns current OS and architecture data for frontend UI logic
 func (a *App) GetDevEnvironment() map[string]string {
 	return map[string]string{

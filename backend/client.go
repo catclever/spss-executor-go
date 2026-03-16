@@ -13,12 +13,14 @@ import (
 )
 
 type AgentClient struct {
-	ctx      context.Context
-	conn     *websocket.Conn
-	spssPath string
-	dataPath string
-	usePD    bool
-	vmName   string
+	ctx        context.Context
+	runCtx     context.Context
+	cancelFunc context.CancelFunc
+	conn       *websocket.Conn
+	spssPath   string
+	dataPath   string
+	usePD      bool
+	vmName     string
 }
 
 func NewAgentClient(ctx context.Context) *AgentClient {
@@ -56,6 +58,16 @@ func (c *AgentClient) Connect(url string, prompt string, spssPath string, dataPa
 			return fmt.Errorf("SPSS executable not found on Host OS at path: %s", c.spssPath)
 		}
 	}
+
+	// Clean up previous context if any
+	if c.cancelFunc != nil {
+		c.cancelFunc()
+	}
+
+	// Create a new cancellable context for this execution run
+	var cancel context.CancelFunc
+	c.runCtx, cancel = context.WithCancel(c.ctx)
+	c.cancelFunc = cancel
 
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
@@ -112,7 +124,7 @@ func (c *AgentClient) listen() {
 			log.Printf("Executing SPSS syntax:\n%s\n", syntax)
 
 			// Invoke the real runner with configured paths and PD settings
-			outputStr, err := RunSPSS(c.spssPath, c.dataPath, syntax, c.usePD, c.vmName)
+			outputStr, err := RunSPSS(c.runCtx, c.spssPath, c.dataPath, syntax, c.usePD, c.vmName)
 			
 			status := "success"
 			if err != nil {
@@ -140,4 +152,16 @@ func (c *AgentClient) listen() {
 			break
 		}
 	}
+}
+
+// CancelExecution forcefuly terminates the current execution context and websocket
+func (c *AgentClient) CancelExecution() {
+	if c.cancelFunc != nil {
+		c.cancelFunc()
+	}
+	if c.conn != nil {
+		c.conn.Close()
+	}
+	runtime.EventsEmit(c.ctx, "agent:status", "Cancelled")
+	runtime.EventsEmit(c.ctx, "agent:error", "Task was cancelled by user.")
 }

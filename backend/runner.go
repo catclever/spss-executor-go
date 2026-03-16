@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,7 +10,7 @@ import (
 )
 
 // RunSPSS executes the given SPSS syntax in an isolated temporary directory.
-func RunSPSS(spssExePath, dataFilePath, agentSyntax string, usePD bool, vmName string) (string, error) {
+func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string, usePD bool, vmName string) (string, error) {
 	// 1. Create unique temporary directory
 	// Create inside the current working directory to guarantee Parallels VM can access it via the \Mac\Host share (system /tmp is often not shared)
 	cwd, _ := os.Getwd()
@@ -63,7 +64,7 @@ func RunSPSS(spssExePath, dataFilePath, agentSyntax string, usePD bool, vmName s
 
 	if usePD {
 		checkCmdStr := fmt.Sprintf("if exist \"%s\" (exit 0) else (exit 1)", batchExePath)
-		if err := exec.Command("prlctl", "exec", vmName, "cmd.exe", "/c", checkCmdStr).Run(); err == nil {
+		if err := exec.CommandContext(ctx, "prlctl", "exec", vmName, "cmd.exe", "/c", checkCmdStr).Run(); err == nil {
 			hasBatch = true
 		}
 	} else {
@@ -76,9 +77,9 @@ func RunSPSS(spssExePath, dataFilePath, agentSyntax string, usePD bool, vmName s
 		// Use true Batch Facility (statisticsb)
 		if usePD {
 			pdSyntaxPath := "\\\\Mac\\Host" + strings.ReplaceAll(syntaxFilePath, "/", "\\")
-			cmd = exec.Command("prlctl", "exec", vmName, batchExePath, "-f", pdSyntaxPath)
+			cmd = exec.CommandContext(ctx, "prlctl", "exec", vmName, batchExePath, "-f", pdSyntaxPath)
 		} else {
-			cmd = exec.Command(batchExePath, "-f", syntaxFilePath)
+			cmd = exec.CommandContext(ctx, batchExePath, "-f", syntaxFilePath)
 			cmd.Dir = tempDir
 		}
 	} else {
@@ -92,22 +93,25 @@ func RunSPSS(spssExePath, dataFilePath, agentSyntax string, usePD bool, vmName s
 			targetSyntaxForSpj = "\\\\Mac\\Host" + strings.ReplaceAll(syntaxFilePath, "/", "\\")
 		}
 
-		spjContent := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
-<job error-stop="false" syntax-format="interactive" syntax-symbol="PRAGMA">
-  <output clear="false" print-output="false" print-syntax="false" print-error="false" show-charts="false" export-output="false" />
-  <syntax-list>
-    <syntax file="%s" />
-  </syntax-list>
-</job>`, targetSyntaxForSpj)
+		dummySpvPath := filepath.Join(tempDir, "dummy.spv")
+		if usePD {
+			dummySpvPath = "\\\\Mac\\Host" + strings.ReplaceAll(dummySpvPath, "/", "\\")
+		}
+
+		spjContent := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<job xmlns="http://www.ibm.com/software/analytics/spss/xml/production" syntaxErrorHandling="continue" syntaxFormat="interactive" unicode="true">
+  <output outputFormat="viewer" outputPath="%s"/>
+  <syntax syntaxPath="%s"/>
+</job>`, dummySpvPath, targetSyntaxForSpj)
 
 		if err := os.WriteFile(spjFilePath, []byte(spjContent), 0644); err != nil {
 			return "", fmt.Errorf("failed to write spj file: %w", err)
 		}
 
 		if usePD {
-			cmd = exec.Command("prlctl", "exec", vmName, spssExePath, "-production", "silent", effectiveSpjPath)
+			cmd = exec.CommandContext(ctx, "prlctl", "exec", vmName, spssExePath, "-production", "silent", effectiveSpjPath)
 		} else {
-			cmd = exec.Command(spssExePath, "-production", "silent", spjFilePath)
+			cmd = exec.CommandContext(ctx, spssExePath, "-production", "silent", spjFilePath)
 			cmd.Dir = tempDir
 		}
 	}
