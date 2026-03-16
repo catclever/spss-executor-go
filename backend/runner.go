@@ -12,13 +12,9 @@ import (
 // RunSPSS executes the given SPSS syntax in an isolated temporary directory.
 func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string, usePD bool, vmName string) (string, error) {
 	// 1. Create unique temporary directory
-	// Create inside the user's home directory to guarantee Parallels VM can access it via the \Mac\Host share,
-	// while avoiding the Go project folder to prevent `wails dev` from triggering immediate hot-reloads.
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get home dir: %w", err)
-	}
-	baseTempDir := filepath.Join(homeDir, ".spss_agent_temp")
+	// Use standard temp directory but ensure it doesn't conflict with Wails watcher,
+	// and is fully accessible by standard macOS permissions (not hidden).
+	baseTempDir := filepath.Join(os.TempDir(), "spss_workspace")
 	os.MkdirAll(baseTempDir, 0755)
 
 	tempDir, err := os.MkdirTemp(baseTempDir, "run_*")
@@ -118,7 +114,13 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 		if usePD {
 			cmd = exec.CommandContext(ctx, "prlctl", "exec", vmName, spssExePath, "-production", "silent", effectiveSpjPath)
 		} else {
-			cmd = exec.CommandContext(ctx, spssExePath, "-production", "silent", spjFilePath)
+			// On Mac, launching the binary directly within a Go shell pipe often crashes the WindowServer connection (Mach port error).
+			// We use the native macOS `open` command with `-W` (Wait) and `-n` (New Instance) to provide a proper UI context to the silent run.
+			if strings.Contains(strings.ToLower(spssExePath), "spss statistics.app") {
+				cmd = exec.CommandContext(ctx, "open", "-W", "-n", "-a", spssExePath, "--args", "-production", "silent", spjFilePath)
+			} else {
+				cmd = exec.CommandContext(ctx, spssExePath, "-production", "silent", spjFilePath)
+			}
 			cmd.Dir = tempDir
 		}
 	}
