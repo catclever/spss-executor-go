@@ -793,7 +793,7 @@
     font-weight: 600;
   }
 
-  .log-entry.type-summary { border-left-color: #a6e3a1; color: #a6e3a1; background-color: rgba(166, 227, 161, 0.1); }
+  .log-entry.type-summary { border-left-color: #a6e3a1; background-color: rgba(166, 227, 161, 0.1); }
   .log-entry.type-summary .tag { background-color: #a6e3a1; color: #11111b; }
 
   .log-entry.type-info { border-left-color: #89b4fa; }

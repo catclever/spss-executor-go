@@ -130,9 +130,13 @@ func (c *AgentClient) listen() {
 			syntax, _ := payload["syntax"].(string)
 			log.Printf("Executing SPSS syntax:\n%s\n", syntax)
 
+			runtime.EventsEmit(c.ctx, "agent:status", "Waiting SPSS...")
+
 			// Invoke the real runner with configured paths and PD settings
 			outputStr, err := RunSPSS(c.runCtx, c.spssPath, c.dataPath, syntax, c.usePD, c.vmName)
 			
+			runtime.EventsEmit(c.ctx, "agent:status", "Waiting Agent...")
+
 			status := "success"
 			if err != nil {
 				status = "error"
@@ -153,13 +157,6 @@ func (c *AgentClient) listen() {
 			runtime.EventsEmit(c.ctx, "agent:message", frontendOutputMsg)
 
 			c.conn.WriteJSON(executionResult)
-			
-			// Optimization 4: Visually indicate agent is reasoning about the results
-			thinkingMsg := map[string]interface{}{
-				"type":    "thinking",
-				"message": "Calling Model...",
-			}
-			runtime.EventsEmit(c.ctx, "agent:message", thinkingMsg)
 			
 		} else if msgType == "finished" {
 			log.Printf("Agent finished. Closing connection.")
