@@ -126,7 +126,7 @@
         }
         
         if (msg.final_syntax) {
-          addLog("syntax", "Final Executable Syntax:\n" + msg.final_syntax);
+          addLog("final-syntax", msg.final_syntax);
         }
 
         isConnected = false;
@@ -310,17 +310,27 @@
         <div class="log-header">
           <span class="tag">{log.type.toUpperCase().replace("-", " ")}</span>
           <span class="log-time">[{log.time}]</span>
-          {#if log.type === 'syntax'}
+          {#if log.type === 'syntax' || log.type === 'final-syntax'}
             <button class="btn-copy" on:click={() => copyToClipboard(log.text)}>Copy</button>
           {/if}
         </div>
         
         {#if log.type === 'spss-out'}
+          {@const lines = log.text.trim().split('\n')}
+          {@const last3 = lines.slice(Math.max(lines.length - 3, 0)).join('\n')}
           <details>
-            <summary>Click to view SPSS Execution Output</summary>
+            <summary>
+              <div class="spss-preview">
+                {#if lines.length > 3}
+                  <div class="spss-trunc-dots">...</div>
+                {/if}
+                {last3}
+              </div>
+              <div class="spss-expand-hint">Click to expand/collapse full output</div>
+            </summary>
             <div class="log-text spss-box">{log.text}</div>
           </details>
-        {:else if log.type === 'syntax'}
+        {:else if log.type === 'final-syntax'}
           <div class="log-text syntax-box">{log.text}</div>
         {:else}
           <div class="log-text">{log.text}</div>
@@ -591,14 +601,37 @@
   details summary {
     cursor: pointer;
     color: #bac2de;
-    font-weight: 600;
     outline: none;
     user-select: none;
     margin-bottom: 6px;
+    background-color: #11111b;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #313244;
   }
 
   details[open] summary {
     margin-bottom: 12px;
+    background-color: #1e1e2e;
+  }
+  
+  .spss-preview {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.75rem;
+    color: #a6adc8;
+    white-space: pre-wrap;
+    margin-bottom: 6px;
+  }
+  
+  .spss-trunc-dots {
+    color: #585b70;
+    margin-bottom: 2px;
+  }
+  
+  .spss-expand-hint {
+    font-size: 0.7rem;
+    color: #89b4fa;
+    font-weight: 600;
   }
 
   .spss-box {
@@ -609,10 +642,9 @@
   }
 
   .syntax-box {
-    background-color: #cdd6f4;
-    color: #11111b;
-    padding: 12px;
-    border-radius: 6px;
+    background-color: transparent;
+    color: inherit;
+    padding: 8px 0;
     font-weight: 600;
   }
 
@@ -624,6 +656,12 @@
 
   .log-entry.type-syntax { border-left-color: #cba6f7; background-color: #313244; }
   .log-entry.type-syntax .tag { background-color: #cba6f7; color: #11111b; }
+
+  .log-entry.type-final-syntax { border-left-color: #cba6f7; background-color: #cba6f7; color: #11111b; }
+  .log-entry.type-final-syntax .tag { background-color: #11111b; color: #cba6f7; }
+  .log-entry.type-final-syntax .log-time { color: #313244; }
+  .log-entry.type-final-syntax .btn-copy { background-color: #11111b; color: #cba6f7; }
+  .log-entry.type-final-syntax .btn-copy:hover { background-color: #313244; }
 
   .log-entry.type-spss-out { border-left-color: #fab387; background-color: #1e1e2e; color: #bac2de; font-size: 0.8rem; }
   .log-entry.type-spss-out .tag { background-color: #fab387; color: #11111b; }

@@ -46,6 +46,7 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 	sb.WriteString("EXECUTE.\n\n")
 	sb.WriteString(agentSyntax)
 	sb.WriteString("\nOMSEND.\n")
+	sb.WriteString("ECHO \"AGENT_EXECUTION_COMPLETE\".\n")
 	sb.WriteString("FINISH.\n")
 
 	syntaxContent := sb.String()
@@ -145,7 +146,7 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 					return
 				default:
 					if b, err := os.ReadFile(outputTxtPath); err == nil {
-						if strings.Contains(string(b), "OMSEND.") {
+						if strings.Contains(string(b), "AGENT_EXECUTION_COMPLETE") {
 							// Execution is complete. Kill the SPSS process wrapper.
 							watchCancel()
 							
