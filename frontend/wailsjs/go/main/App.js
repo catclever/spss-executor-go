@@ -6,8 +6,8 @@ export function CancelExecution() {
   return window['go']['main']['App']['CancelExecution']();
 }
 
-export function ConnectServer(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
-  return window['go']['main']['App']['ConnectServer'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+export function ConnectServer(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+  return window['go']['main']['App']['ConnectServer'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
 export function FetchDictionary(arg1, arg2, arg3, arg4) {

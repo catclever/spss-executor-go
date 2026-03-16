@@ -30,7 +30,7 @@ func NewAgentClient(ctx context.Context) *AgentClient {
 }
 
 // Connect opens the WebSocket to the Ruby server and sends the initialization payload.
-func (c *AgentClient) Connect(url string, prompt string, spssPath string, dataPath string, usePD bool, vmName string, workingNote string) error {
+func (c *AgentClient) Connect(url string, prompt string, spssPath string, dataPath string, usePD bool, vmName string, workingNote string, llmConfigStr string) error {
 	log.Printf("Connecting to Agent Server: %s", url)
 
 	c.spssPath = spssPath
@@ -76,12 +76,18 @@ func (c *AgentClient) Connect(url string, prompt string, spssPath string, dataPa
 	}
 	c.conn = conn
 
-	// Send Init Payload
 	initMsg := map[string]interface{}{
 		"type":         "init",
 		"prompt":       prompt,
 		"schema":       `{"vars": ["gender", "age"]}`, // Example schema
 		"working_note": workingNote,
+	}
+
+	if llmConfigStr != "" && llmConfigStr != "{}" {
+		var llmMap map[string]interface{}
+		if err := json.Unmarshal([]byte(llmConfigStr), &llmMap); err == nil {
+			initMsg["llm_config"] = llmMap
+		}
 	}
 	if err := c.conn.WriteJSON(initMsg); err != nil {
 		return err

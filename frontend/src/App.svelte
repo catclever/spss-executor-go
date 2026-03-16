@@ -26,6 +26,13 @@
   // To store the stream of messages and executions
   let logs: { type: string, text: string, time: string }[] = [];
   let expandedLogs: Set<number> = new Set();
+  
+  // Settings / LLM configs
+  let showConfig: boolean = false;
+  let llmFormat: string = "openai";
+  let llmBaseUrl: string = "https://open.bigmodel.cn/api/coding/paas/v4";
+  let llmModel: string = "glm-4.7";
+  let llmApiKey: string = "";
 
   // Reactive statement to auto-switch default paths based on Parallels toggle
   // Only execute this if the user actively toggles it (after load) rather than on initial load
@@ -43,13 +50,16 @@
     }
   }
 
-  // Reactive statements to save state to localStorage
   $: if (isLoaded) localStorage.setItem('spssAgent_serverUrl', serverUrl);
   $: if (isLoaded) localStorage.setItem('spssAgent_spssPath', spssPath);
   $: if (isLoaded) localStorage.setItem('spssAgent_dataPath', dataPath);
   $: if (isLoaded) localStorage.setItem('spssAgent_promptText', promptText);
   $: if (isLoaded) localStorage.setItem('spssAgent_usePD', String(usePD));
   $: if (isLoaded) localStorage.setItem('spssAgent_vmName', vmName);
+  $: if (isLoaded) localStorage.setItem('spssAgent_llmFormat', llmFormat);
+  $: if (isLoaded) localStorage.setItem('spssAgent_llmBaseUrl', llmBaseUrl);
+  $: if (isLoaded) localStorage.setItem('spssAgent_llmModel', llmModel);
+  $: if (isLoaded) localStorage.setItem('spssAgent_llmApiKey', llmApiKey);
 
   function addLog(type: string, text: string) {
     const time = new Date().toLocaleTimeString();
@@ -79,11 +89,20 @@
     const savedPrompt = localStorage.getItem('spssAgent_promptText');
     const savedUsePD = localStorage.getItem('spssAgent_usePD');
     const savedVmName = localStorage.getItem('spssAgent_vmName');
+    
+    const savedLlmFormat = localStorage.getItem('spssAgent_llmFormat');
+    const savedLlmBaseUrl = localStorage.getItem('spssAgent_llmBaseUrl');
+    const savedLlmModel = localStorage.getItem('spssAgent_llmModel');
+    const savedLlmApiKey = localStorage.getItem('spssAgent_llmApiKey');
 
     if (savedUrl) serverUrl = savedUrl;
     if (savedPrompt) promptText = savedPrompt;
     if (savedUsePD) usePD = savedUsePD === 'true';
     if (savedVmName) vmName = savedVmName;
+    if (savedLlmFormat) llmFormat = savedLlmFormat;
+    if (savedLlmBaseUrl) llmBaseUrl = savedLlmBaseUrl;
+    if (savedLlmModel) llmModel = savedLlmModel;
+    if (savedLlmApiKey) llmApiKey = savedLlmApiKey;
 
     // Detect OS and set defaults only if no saved path exists
     try {
@@ -187,7 +206,14 @@
     statusText = "Connecting...";
     addLog("system", "Dialing " + serverUrl + " ...");
 
-    ConnectServer(serverUrl, promptText, spssPath, dataPath, usePD, vmName, workingNote).catch(err => {
+    const llmConfig = JSON.stringify({
+      format: llmFormat,
+      base_url: llmBaseUrl,
+      model: llmModel,
+      api_key: llmApiKey
+    });
+
+    ConnectServer(serverUrl, promptText, spssPath, dataPath, usePD, vmName, workingNote, llmConfig).catch(err => {
       addLog("error", "Failed to connect: " + err);
       isConnected = false;
       statusText = "Disconnected";
@@ -250,68 +276,110 @@
 
 <main class="app-container">
   <div class="sidebar">
-    <h2>Descartes Agent</h2>
-    <div class="form-group">
-      <label for="url">Ruby Server URL</label>
-      <input id="url" type="text" bind:value={serverUrl} disabled={isConnected} />
-    </div>
-
-    <div class="form-group">
-      <label for="spss">
-        {usePD ? 'SPSS Binary Path (Inside VM)' : 'SPSS Binary Path'}
-      </label>
-      <div class="input-with-button">
-        <input id="spss" type="text" bind:value={spssPath} disabled={isConnected} />
-        <button class="btn-select" on:click={handleSelectSPSS} disabled={isConnected || usePD}>Select</button>
+    {#if !showConfig}
+      <div class="sidebar-header">
+        <h2>Descartes Agent</h2>
+        <button class="icon-btn" on:click={() => showConfig = true} title="Settings">⚙️</button>
       </div>
-    </div>
 
-    <div class="form-group">
-      <label for="data">Dataset Path (.sav)</label>
-      <div class="input-with-button">
-        <input id="data" type="text" bind:value={dataPath} disabled={isConnected || activeSessionDataPath !== ""} />
-        <button class="btn-select" on:click={handleSelectData} disabled={isConnected || activeSessionDataPath !== ""}>Select</button>
-      </div>
-    </div>
-
-    {#if osType === 'darwin' || osType === 'mac'}
-      <div class="form-group pd-toggle">
-        <label>
-          <input type="checkbox" bind:checked={usePD} disabled={isConnected} />
-          <span class="checkbox-label">Use Parallels Desktop VM</span>
-        </label>
-      </div>
-      
-      {#if usePD}
-        <div class="form-group indent">
-          <label for="vmname">VM Name</label>
-          <input id="vmname" type="text" bind:value={vmName} disabled={isConnected} />
+      <div class="form-group main-input-group">
+        <label for="data">Dataset Path (.sav)</label>
+        <div class="input-with-button">
+          <input id="data" type="text" bind:value={dataPath} disabled={isConnected || activeSessionDataPath !== ""} />
+          <button class="btn-select" on:click={handleSelectData} disabled={isConnected || activeSessionDataPath !== ""}>Select</button>
         </div>
-      {/if}
+      </div>
+
+      <div class="form-group main-input-group" style="flex: 1">
+        <label for="prompt">Your Goal / Prompt</label>
+        <textarea id="prompt" bind:value={promptText} disabled={isConnected} style="height: 100%; resize: none;"></textarea>
+      </div>
+
+      <div class="action-buttons">
+        <button class="btn-connect" on:click={connect} disabled={isConnected}>
+          {isConnected ? 'Running Agent...' : 'Start Execution'}
+        </button>
+
+        {#if isConnected}
+          <button class="btn-cancel" on:click={cancelTask}>
+            Cancel Task
+          </button>
+        {:else if activeSessionDataPath !== ""}
+          <button class="btn-new-session" on:click={startNewSession}>
+            Start New Session
+          </button>
+        {/if}
+      </div>
+
+      <div class="status-indicator">
+        Status: <span class={isConnected ? 'active' : ''}>{statusText}</span>
+      </div>
+
+    {:else}
+      <div class="sidebar-header">
+        <h2>Configurations</h2>
+        <button class="icon-btn" on:click={() => showConfig = false} title="Back">⬅️</button>
+      </div>
+
+      <div class="config-scroll-area">
+        <div class="config-section">
+          <h3>Connection Setup</h3>
+          <div class="form-group">
+            <label for="url">Ruby Server URL</label>
+            <input id="url" type="text" bind:value={serverUrl} disabled={isConnected} />
+          </div>
+          <div class="form-group">
+            <label for="spss">
+              {usePD ? 'SPSS Path (In VM)' : 'SPSS Binary Path'}
+            </label>
+            <div class="input-with-button">
+              <input id="spss" type="text" bind:value={spssPath} disabled={isConnected} />
+              <button class="btn-select" on:click={handleSelectSPSS} disabled={isConnected || usePD}>...Select</button>
+            </div>
+          </div>
+
+          {#if osType === 'darwin' || osType === 'mac'}
+            <div class="form-group pd-toggle">
+              <label>
+                <input type="checkbox" bind:checked={usePD} disabled={isConnected} />
+                <span class="checkbox-label">Use Parallels Desktop VM</span>
+              </label>
+            </div>
+            
+            {#if usePD}
+              <div class="form-group indent">
+                <label for="vmname">VM Name</label>
+                <input id="vmname" type="text" bind:value={vmName} disabled={isConnected} />
+              </div>
+            {/if}
+          {/if}
+        </div>
+
+        <div class="config-section">
+          <h3>LLM Properties</h3>
+          <div class="form-group">
+            <label for="llmFormat">Format</label>
+            <select id="llmFormat" bind:value={llmFormat} disabled={isConnected}>
+              <option value="openai">OpenAI Compatible</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="gemini">Gemini</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="llmBaseUrl">Base URL</label>
+            <input id="llmBaseUrl" type="text" bind:value={llmBaseUrl} disabled={isConnected} />
+          </div>
+          <div class="form-group">
+            <label for="llmModel">Model Name</label>
+            <input id="llmModel" type="text" bind:value={llmModel} disabled={isConnected} />
+          </div>
+          <div class="form-group">
+            <label for="llmApiKey">API Key</label>
+            <input id="llmApiKey" type="password" bind:value={llmApiKey} disabled={isConnected} placeholder="Enter API Key" />
+          </div>
+        </div>
+      </div>
     {/if}
-
-    <div class="form-group">
-      <label for="prompt">Your Goal / Prompt</label>
-      <textarea id="prompt" bind:value={promptText} rows="5" disabled={isConnected}></textarea>
-    </div>
-
-    <button class="btn-connect" on:click={connect} disabled={isConnected}>
-      {isConnected ? 'Running Agent...' : 'Start Execution'}
-    </button>
-
-    {#if isConnected}
-      <button class="btn-cancel" on:click={cancelTask}>
-        Cancel Task
-      </button>
-    {:else if activeSessionDataPath !== ""}
-      <button class="btn-new-session" on:click={startNewSession}>
-        Start New Session
-      </button>
-    {/if}
-
-    <div class="status-indicator">
-      Status: <span class={isConnected ? 'active' : ''}>{statusText}</span>
-    </div>
   </div>
 
   <div class="log-panel" id="log-container">
@@ -335,7 +403,7 @@
           {@const isExpanded = expandedLogs.has(i)}
           
           {#if !isExpanded}
-            <div class="log-text spss-box collapsed" on:click={() => toggleExpand(i)}>
+            <div class="log-text spss-box collapsed" on:click={() => toggleExpand(i)} on:keydown={(e) => e.key === 'Enter' && toggleExpand(i)} tabindex="0" role="button">
               <div class="spss-preview">
                 {#if lines.length > 3}
                   <div class="spss-trunc-dots">...</div>
@@ -345,7 +413,7 @@
               <div class="spss-expand-hint">Click to fully expand SPSS Output</div>
             </div>
           {:else}
-            <div class="log-text spss-box expanded" on:click={() => toggleExpand(i)}>
+            <div class="log-text spss-box expanded" on:click={() => toggleExpand(i)} on:keydown={(e) => e.key === 'Enter' && toggleExpand(i)} tabindex="0" role="button">
               {log.text}
               <div class="spss-expand-hint mt-2">Click to collapse</div>
             </div>
@@ -386,10 +454,72 @@
     box-shadow: 2px 0 10px rgba(0,0,0,0.2);
   }
 
-  .sidebar h2 {
+  .sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #313244;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+  }
+
+  .sidebar-header h2 {
     margin: 0;
-    font-size: 1.5rem;
+    font-size: 1.3rem;
     color: #89b4fa;
+  }
+
+  .icon-btn {
+    background: transparent;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+
+  .icon-btn:hover {
+    transform: scale(1.1);
+  }
+
+  .main-input-group {
+    margin-bottom: 15px;
+  }
+
+  .action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .config-scroll-area {
+    overflow-y: auto;
+    flex: 1;
+    padding-right: 5px;
+  }
+  
+  .config-scroll-area::-webkit-scrollbar {
+    width: 6px;
+  }
+  .config-scroll-area::-webkit-scrollbar-thumb {
+    background-color: #313244;
+    border-radius: 4px;
+  }
+
+  .config-section {
+    background-color: #1e1e2e;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border: 1px solid #313244;
+  }
+
+  .config-section h3 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 0.95rem;
+    color: #f38ba8;
+    border-bottom: 1px solid #313244;
+    padding-bottom: 6px;
   }
 
   .form-group {
@@ -426,7 +556,7 @@
     padding-left: 10px;
   }
 
-  input[type="text"], textarea {
+  input[type="text"], input[type="password"], textarea, select {
     background-color: #11111b;
     border: 1px solid #313244;
     color: #cdd6f4;
@@ -437,7 +567,7 @@
     transition: border-color 0.2s;
   }
 
-  input:focus, textarea:focus {
+  input:focus, textarea:focus, select:focus {
     border-color: #89b4fa;
   }
 
