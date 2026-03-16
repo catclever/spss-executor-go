@@ -13,6 +13,9 @@
   let usePD: boolean = false;
   let vmName: string = "Windows 11";
 
+  // Flag to prevent reactive saves during initial mount load
+  let isLoaded: boolean = false;
+
   let isConnected: boolean = false;
   let statusText: string = "Disconnected";
   
@@ -20,7 +23,8 @@
   let logs: { type: string, text: string, time: string }[] = [];
 
   // Reactive statement to auto-switch default paths based on Parallels toggle
-  $: if (osType === 'darwin' || osType === 'mac') {
+  // Only execute this if the user actively toggles it (after load) rather than on initial load
+  $: if (isLoaded && (osType === 'darwin' || osType === 'mac')) {
     if (usePD) {
       if (spssPath === "/Applications/IBM SPSS Statistics/SPSS Statistics.app/Contents/MacOS/stats") {
         spssPath = "C:\\Program Files\\IBM\\SPSS Statistics\\28\\stats.exe";
@@ -31,6 +35,14 @@
       }
     }
   }
+
+  // Reactive statements to save state to localStorage
+  $: if (isLoaded) localStorage.setItem('spssAgent_serverUrl', serverUrl);
+  $: if (isLoaded) localStorage.setItem('spssAgent_spssPath', spssPath);
+  $: if (isLoaded) localStorage.setItem('spssAgent_dataPath', dataPath);
+  $: if (isLoaded) localStorage.setItem('spssAgent_promptText', promptText);
+  $: if (isLoaded) localStorage.setItem('spssAgent_usePD', String(usePD));
+  $: if (isLoaded) localStorage.setItem('spssAgent_vmName', vmName);
 
   function addLog(type: string, text: string) {
     const time = new Date().toLocaleTimeString();
@@ -44,20 +56,40 @@
   }
 
   onMount(async () => {
-    // Detect OS and set defaults
+    // Load persisted state from localStorage
+    const savedUrl = localStorage.getItem('spssAgent_serverUrl');
+    const savedSpss = localStorage.getItem('spssAgent_spssPath');
+    const savedData = localStorage.getItem('spssAgent_dataPath');
+    const savedPrompt = localStorage.getItem('spssAgent_promptText');
+    const savedUsePD = localStorage.getItem('spssAgent_usePD');
+    const savedVmName = localStorage.getItem('spssAgent_vmName');
+
+    if (savedUrl) serverUrl = savedUrl;
+    if (savedPrompt) promptText = savedPrompt;
+    if (savedUsePD) usePD = savedUsePD === 'true';
+    if (savedVmName) vmName = savedVmName;
+
+    // Detect OS and set defaults only if no saved path exists
     try {
       const env = await GetDevEnvironment();
       osType = env.os;
-      if (osType === "windows") {
-        spssPath = "C:\\Program Files\\IBM\\SPSS Statistics\\28\\stats.exe";
-        dataPath = "C:\\Data\\example.sav";
+      if (!savedSpss || !savedData) {
+        if (osType === "windows") {
+          spssPath = savedSpss || "C:\\Program Files\\IBM\\SPSS Statistics\\28\\stats.exe";
+          dataPath = savedData || "C:\\Data\\example.sav";
+        } else {
+          spssPath = savedSpss || "/Applications/IBM SPSS Statistics/SPSS Statistics.app/Contents/MacOS/stats";
+          dataPath = savedData || "/Users/kael/Data/example.sav";
+        }
       } else {
-        spssPath = "/Applications/IBM SPSS Statistics/SPSS Statistics.app/Contents/MacOS/stats";
-        dataPath = "/Users/kael/Data/example.sav";
+        spssPath = savedSpss;
+        dataPath = savedData;
       }
     } catch (e) {
       console.error("Failed to get dev env", e);
     }
+
+    isLoaded = true; // Enable reactive saving
 
     EventsOn("agent:status", (status: string) => {
       statusText = status;
@@ -73,10 +105,21 @@
     EventsOn("agent:message", (msg: any) => {
       if (msg.type === "execute_syntax") {
         addLog("syntax", "Executing Syntax:\n" + msg.syntax);
+      } else if (msg.type === "spss_output") {
+        addLog("spss-out", "SPSS Output:\n" + msg.message);
       } else if (msg.type === "status") {
         addLog("info", "Agent: " + msg.message);
       } else if (msg.type === "finished") {
         addLog("success", "Agent Task Completed!");
+        
+        if (msg.analysis_summary) {
+          addLog("info", "Analysis Summary:\n" + msg.analysis_summary);
+        }
+        
+        if (msg.final_syntax) {
+          addLog("syntax", "Final Executable Syntax:\n" + msg.final_syntax);
+        }
+
         isConnected = false;
         statusText = "Finished";
       } else if (msg.type === "error") {
@@ -327,6 +370,7 @@
 
   .log-entry.type-info { border-left-color: #89b4fa; }
   .log-entry.type-syntax { border-left-color: #cba6f7; background-color: #313244; }
+  .log-entry.type-spss-out { border-left-color: #fab387; background-color: #1e1e2e; color: #bac2de; font-size: 0.8rem; }
   .log-entry.type-error { border-left-color: #f38ba8; color: #f38ba8; }
   .log-entry.type-success { border-left-color: #a6e3a1; }
   .log-entry.type-system { border-left-color: #f9e2af; }

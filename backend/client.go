@@ -3,7 +3,10 @@ package backend
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"os"
+	"os/exec"
 
 	"github.com/gorilla/websocket"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -32,6 +35,27 @@ func (c *AgentClient) Connect(url string, prompt string, spssPath string, dataPa
 	c.dataPath = dataPath
 	c.usePD = usePD
 	c.vmName = vmName
+
+	// PRE-FLIGHT VALIDATION 1: Check Data Path (Must exist on the Host OS)
+	if _, err := os.Stat(c.dataPath); os.IsNotExist(err) {
+		return fmt.Errorf("dataset file not found on Host OS at path: %s", c.dataPath)
+	}
+
+	// PRE-FLIGHT VALIDATION 2: Check SPSS Executable Path
+	if c.usePD {
+		// Parallels VM Check: Run a simple cmd.exe check inside the VM
+		log.Printf("Validating SPSS path inside Parallels VM: %s", c.spssPath)
+		checkCmdStr := fmt.Sprintf("if exist \"%s\" (exit 0) else (exit 1)", c.spssPath)
+		cmd := exec.Command("prlctl", "exec", c.vmName, "cmd.exe", "/c", checkCmdStr)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("SPSS executable not found inside Parallels VM ('%s') at path: %s. \nEnsure the VM is running and the path is correct.", c.vmName, c.spssPath)
+		}
+	} else {
+		// Native Local Check (Windows or Mac natively)
+		if _, err := os.Stat(c.spssPath); os.IsNotExist(err) {
+			return fmt.Errorf("SPSS executable not found on Host OS at path: %s", c.spssPath)
+		}
+	}
 
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
@@ -101,6 +125,14 @@ func (c *AgentClient) listen() {
 				"status": status,
 				"output": outputStr,
 			}
+			
+			// New Feature: Stream the actual SPSS execution output to the Wails UI
+			frontendOutputMsg := map[string]interface{}{
+				"type":    "spss_output",
+				"message": outputStr,
+			}
+			runtime.EventsEmit(c.ctx, "agent:message", frontendOutputMsg)
+
 			c.conn.WriteJSON(executionResult)
 			
 		} else if msgType == "finished" {
