@@ -39,14 +39,15 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 		effectiveOutputPath = "\\\\Mac\\Host" + strings.ReplaceAll(outputTxtPath, "/", "\\")
 	}
 
-	// 2. Prepare the syntax with injected GET FILE and OMS
+	// 2. Prepare the syntax with injected GET FILE, PRINTBACK prevention, and OMS
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("GET FILE='%s'.\n", effectiveDataPath))
+	sb.WriteString("SET PRINTBACK=NO.\n")
 	sb.WriteString(fmt.Sprintf("OMS /SELECT ALL /DESTINATION FORMAT=TEXT OUTFILE='%s'.\n", effectiveOutputPath))
 	sb.WriteString("EXECUTE.\n\n")
 	sb.WriteString(agentSyntax)
-	sb.WriteString("\nOMSEND.\n")
-	sb.WriteString("ECHO \"AGENT_EXECUTION_COMPLETE\".\n")
+	sb.WriteString("\nECHO \"AGENT_EXECUTION_COMPLETE\".\n")
+	sb.WriteString("OMSEND.\n")
 	sb.WriteString("FINISH.\n")
 
 	syntaxContent := sb.String()
@@ -105,7 +106,7 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 		}
 
 		spjContent := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<job xmlns="http://www.ibm.com/software/analytics/spss/xml/production" syntaxErrorHandling="halt" syntaxFormat="interactive" unicode="true">
+<job xmlns="http://www.ibm.com/software/analytics/spss/xml/production" syntaxErrorHandling="continue" syntaxFormat="interactive" unicode="true">
   <output outputFormat="viewer" outputPath="%s"/>
   <syntax syntaxPath="%s"/>
 </job>`, dummySpvPath, targetSyntaxForSpj)
