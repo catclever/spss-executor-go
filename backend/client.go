@@ -93,7 +93,10 @@ func (c *AgentClient) Connect(url string, prompt string, spssPath string, dataPa
 		return err
 	}
 
-	runtime.EventsEmit(c.ctx, "agent:status", "Connected to Server. Waiting for agent...")
+	runtime.EventsEmit(c.ctx, "agent:status", "Connected to Server.")
+	go func() {
+		runtime.EventsEmit(c.ctx, "agent:status", "Waiting Agent...")
+	}()
 
 	// Wait and listen for messages in a goroutine
 	go c.listen()
@@ -129,6 +132,8 @@ func (c *AgentClient) listen() {
 		if msgType == "execute_syntax" {
 			syntax, _ := payload["syntax"].(string)
 			log.Printf("Executing SPSS syntax:\n%s\n", syntax)
+			
+			runtime.EventsEmit(c.ctx, "agent:status", "Waiting SPSS...")
 
 			// Invoke the real runner with configured paths and PD settings
 			outputStr, err := RunSPSS(c.runCtx, c.spssPath, c.dataPath, syntax, c.usePD, c.vmName)
