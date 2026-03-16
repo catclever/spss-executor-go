@@ -116,8 +116,9 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 		} else {
 			// On Mac, launching the binary directly within a Go shell pipe often crashes the WindowServer connection (Mach port error).
 			// We use the native macOS `open` command with `-W` (Wait) and `-n` (New Instance) to provide a proper UI context to the silent run.
-			if strings.Contains(strings.ToLower(spssExePath), "spss statistics.app") {
-				cmd = exec.CommandContext(ctx, "open", "-W", "-n", "-a", spssExePath, "--args", "-production", "silent", spjFilePath)
+			if appIndex := strings.Index(strings.ToLower(spssExePath), ".app"); appIndex != -1 {
+				appBundlePath := spssExePath[:appIndex+4]
+				cmd = exec.CommandContext(ctx, "open", "-W", "-n", "-a", appBundlePath, "--args", "-production", "silent", spjFilePath)
 			} else {
 				cmd = exec.CommandContext(ctx, spssExePath, "-production", "silent", spjFilePath)
 			}
