@@ -153,7 +153,7 @@
         addLog("success", "Agent Task Completed!");
         
         if (msg.analysis_summary) {
-          addLog("info", "Analysis Summary:\n" + msg.analysis_summary);
+          addLog("summary", msg.analysis_summary);
         }
         
         if (msg.final_syntax) {
@@ -641,7 +641,6 @@
     font-weight: 600;
     cursor: pointer;
     transition: background-color 0.2s, transform 0.1s;
-    margin-top: -10px; /* pull closer to the connect button */
   }
 
   .btn-cancel:hover {
@@ -661,7 +660,6 @@
     font-weight: 600;
     cursor: pointer;
     transition: background-color 0.2s, transform 0.1s;
-    margin-top: -10px;
   }
 
   .btn-new-session:hover {
@@ -794,6 +792,9 @@
     padding: 8px 0;
     font-weight: 600;
   }
+
+  .log-entry.type-summary { border-left-color: #a6e3a1; color: #a6e3a1; background-color: rgba(166, 227, 161, 0.1); }
+  .log-entry.type-summary .tag { background-color: #a6e3a1; color: #11111b; }
 
   .log-entry.type-info { border-left-color: #89b4fa; }
   .log-entry.type-info .tag { background-color: #89b4fa; color: #11111b; }
