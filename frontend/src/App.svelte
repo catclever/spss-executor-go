@@ -25,6 +25,7 @@
   
   // To store the stream of messages and executions
   let logs: { type: string, text: string, time: string }[] = [];
+  let expandedLogs: Set<number> = new Set();
 
   // Reactive statement to auto-switch default paths based on Parallels toggle
   // Only execute this if the user actively toggles it (after load) rather than on initial load
@@ -59,6 +60,15 @@
       const el = document.getElementById("log-container");
       if(el) el.scrollTop = el.scrollHeight;
     }, 100);
+  }
+
+  function toggleExpand(index: number) {
+    if (expandedLogs.has(index)) {
+      expandedLogs.delete(index);
+    } else {
+      expandedLogs.add(index);
+    }
+    expandedLogs = expandedLogs; // trigger reactivity
   }
 
   onMount(async () => {
@@ -230,6 +240,8 @@
     activeSessionDataPath = "";
     workingNote = "";
     logs = [];
+    expandedLogs.clear();
+    expandedLogs = expandedLogs;
     statusText = "Disconnected";
   }
 </script>
@@ -305,7 +317,7 @@
       <div class="empty-state">Waiting for execution to start...</div>
     {/if}
     
-    {#each logs as log}
+    {#each logs as log, i}
       <div class="log-entry type-{log.type}">
         <div class="log-header">
           <span class="tag">{log.type.toUpperCase().replace("-", " ")}</span>
@@ -318,18 +330,24 @@
         {#if log.type === 'spss-out'}
           {@const lines = log.text.trim().split('\n')}
           {@const last3 = lines.slice(Math.max(lines.length - 3, 0)).join('\n')}
-          <details>
-            <summary>
+          {@const isExpanded = expandedLogs.has(i)}
+          
+          {#if !isExpanded}
+            <div class="log-text spss-box collapsed" on:click={() => toggleExpand(i)}>
               <div class="spss-preview">
                 {#if lines.length > 3}
                   <div class="spss-trunc-dots">...</div>
                 {/if}
                 {last3}
               </div>
-              <div class="spss-expand-hint">Click to expand/collapse full output</div>
-            </summary>
-            <div class="log-text spss-box">{log.text}</div>
-          </details>
+              <div class="spss-expand-hint">Click to fully expand SPSS Output</div>
+            </div>
+          {:else}
+            <div class="log-text spss-box expanded" on:click={() => toggleExpand(i)}>
+              {log.text}
+              <div class="spss-expand-hint mt-2">Click to collapse</div>
+            </div>
+          {/if}
         {:else if log.type === 'final-syntax'}
           <div class="log-text syntax-box">{log.text}</div>
         {:else}
@@ -598,21 +616,8 @@
     background-color: #585b70;
   }
 
-  details summary {
-    cursor: pointer;
-    color: #bac2de;
-    outline: none;
-    user-select: none;
-    margin-bottom: 6px;
-    background-color: #11111b;
-    padding: 10px;
-    border-radius: 6px;
-    border: 1px solid #313244;
-  }
-
-  details[open] summary {
-    margin-bottom: 12px;
-    background-color: #1e1e2e;
+  .btn-copy:hover {
+    background-color: #585b70;
   }
   
   .spss-preview {
@@ -634,11 +639,21 @@
     font-weight: 600;
   }
 
+  .mt-2 {
+    margin-top: 8px;
+  }
+
   .spss-box {
     background-color: #11111b;
     padding: 10px;
     border-radius: 6px;
     border: 1px solid #313244;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .spss-box:hover {
+    background-color: #181825;
   }
 
   .syntax-box {
