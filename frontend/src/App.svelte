@@ -324,9 +324,7 @@
         {/if}
       </div>
 
-      <div class="status-indicator">
-        Status: <span class={isConnected ? 'active' : ''}>{statusText}</span>
-      </div>
+
 
     {:else}
       <div class="sidebar-header">
@@ -403,6 +401,9 @@
   </div>
 
   <div class="log-panel" id="log-container">
+    <div class="status-badge">
+      Status: <span class={isConnected ? 'active' : ''}>{statusText}</span>
+    </div>
     {#if logs.length === 0}
       <div class="empty-state">Waiting for execution to start...</div>
     {/if}
@@ -730,13 +731,21 @@
     transform: scale(0.98);
   }
 
-  .status-indicator {
-    margin-top: auto;
+  .status-badge {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background-color: rgba(24, 24, 37, 0.8);
+    backdrop-filter: blur(4px);
+    padding: 6px 12px;
+    border-radius: 6px;
     font-size: 0.85rem;
     color: #a6adc8;
+    border: 1px solid #313244;
+    z-index: 10;
   }
 
-  .status-indicator span.active {
+  .status-badge span.active {
     color: #a6e3a1;
     font-weight: bold;
   }
@@ -749,6 +758,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    position: relative;
   }
 
   .empty-state {
