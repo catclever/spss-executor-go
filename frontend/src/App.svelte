@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { ConnectServer, GetDevEnvironment, CancelExecution, SelectSPSSBinary, SelectDataFile, FetchDictionary } from '../wailsjs/go/main/App.js';
-  import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime.js';
+  import { EventsOn, EventsOff, BrowserOpenURL } from '../wailsjs/runtime/runtime.js';
 
   let osType: string = "";
   let serverUrl: string = "ws://localhost:9292";
@@ -397,6 +397,9 @@
         </div>
       </div>
     {/if}
+    <div class="sidebar-footer">
+      <a href="https://github.com/catclever/descartes" on:click|preventDefault={() => BrowserOpenURL("https://github.com/catclever/descartes")}>powered by descartes</a>
+    </div>
   </div>
 
   <div class="log-panel" id="log-container">
@@ -478,6 +481,26 @@
     border-bottom: 1px solid #313244;
     padding-bottom: 10px;
     margin-bottom: 10px;
+  }
+
+  .sidebar-footer {
+    margin-top: auto;
+    text-align: center;
+    padding-top: 15px;
+    border-top: 1px solid #313244;
+  }
+  
+  .sidebar-footer a {
+    color: #89b4fa;
+    text-decoration: none;
+    font-size: 0.85em;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+  }
+  
+  .sidebar-footer a:hover {
+    opacity: 1;
+    text-decoration: underline;
   }
 
   .sidebar-header h2 {
