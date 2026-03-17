@@ -291,7 +291,7 @@
   <div class="sidebar">
     {#if !showConfig}
       <div class="sidebar-header">
-        <h2>Descartes Agent</h2>
+        <h2>SPSS Agent</h2>
         <button class="icon-btn" on:click={() => showConfig = true} title="Settings">⚙️</button>
       </div>
 
