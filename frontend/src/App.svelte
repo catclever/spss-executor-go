@@ -400,10 +400,11 @@
     </div>
   </div>
 
+  <div class="status-badge">
+    Status: <span class={isConnected ? 'active' : ''}>{statusText}</span>
+  </div>
+
   <div class="log-panel" id="log-container">
-    <div class="status-badge">
-      Status: <span class={isConnected ? 'active' : ''}>{statusText}</span>
-    </div>
     {#if logs.length === 0}
       <div class="empty-state">Waiting for execution to start...</div>
     {/if}
@@ -462,6 +463,7 @@
     height: 100vh;
     width: 100vw;
     overflow: hidden;
+    position: relative;
   }
 
   .sidebar {
