@@ -331,7 +331,7 @@
     {:else}
       <div class="sidebar-header">
         <h2>Configurations</h2>
-        <button class="icon-btn" on:click={() => showConfig = false} title="Back">⬅️</button>
+        <button class="btn-done-small" on:click={() => showConfig = false} title="Done">Done</button>
       </div>
 
       <div class="config-scroll-area">
@@ -519,6 +519,26 @@
 
   .icon-btn:hover {
     transform: scale(1.1);
+  }
+
+  .btn-done-small {
+    background-color: #a6e3a1;
+    color: #11111b;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+  }
+
+  .btn-done-small:hover {
+    background-color: #b3efad;
+  }
+
+  .btn-done-small:active {
+    transform: scale(0.95);
   }
 
   .main-input-group {
