@@ -14,6 +14,10 @@ export function FetchDictionary(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['FetchDictionary'](arg1, arg2, arg3, arg4);
 }
 
+export function GetAppConfig() {
+  return window['go']['main']['App']['GetAppConfig']();
+}
+
 export function GetDevEnvironment() {
   return window['go']['main']['App']['GetDevEnvironment']();
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { ConnectServer, GetDevEnvironment, CancelExecution, SelectSPSSBinary, SelectDataFile, FetchDictionary } from '../wailsjs/go/main/App.js';
+  import { ConnectServer, GetDevEnvironment, CancelExecution, SelectSPSSBinary, SelectDataFile, FetchDictionary, GetAppConfig } from '../wailsjs/go/main/App.js';
   import { EventsOn, EventsOff, BrowserOpenURL } from '../wailsjs/runtime/runtime.js';
 
   let osType: string = "";
@@ -98,14 +98,27 @@
     const savedLlmApiKey = localStorage.getItem('spssAgent_llmApiKey');
     const savedLlmTemperature = localStorage.getItem('spssAgent_llmTemperature');
 
-    if (savedUrl) serverUrl = savedUrl;
+    let config: any = {};
+    try {
+      config = await GetAppConfig();
+    } catch (e) {
+      console.warn("Failed to load config", e);
+      config = { serverUrl: "ws://localhost:9292", spssPath: "C:\\Program Files\\IBM\\SPSS Statistics\\28\\stats.exe", llmModel: "glm-4.7", apiKey: "" };
+    }
+
+    if (savedUrl) serverUrl = savedUrl; else serverUrl = config.serverUrl;
     if (savedPrompt) promptText = savedPrompt;
     if (savedUsePD) usePD = savedUsePD === 'true';
     if (savedVmName) vmName = savedVmName;
     if (savedLlmFormat) llmFormat = savedLlmFormat;
     if (savedLlmBaseUrl) llmBaseUrl = savedLlmBaseUrl;
-    if (savedLlmModel) llmModel = savedLlmModel;
-    if (savedLlmApiKey) llmApiKey = savedLlmApiKey;
+    if (savedLlmModel) llmModel = savedLlmModel; else llmModel = config.llmModel;
+    
+    if (!savedLlmApiKey && config.apiKey) {
+      llmApiKey = config.apiKey.trim();
+    } else if (savedLlmApiKey) {
+      llmApiKey = savedLlmApiKey;
+    }
     if (savedLlmTemperature && !isNaN(parseFloat(savedLlmTemperature))) llmTemperature = parseFloat(savedLlmTemperature);
 
     // Detect OS and set defaults only if no saved path exists
@@ -114,7 +127,7 @@
       osType = env.os;
       if (!savedSpss || !savedData) {
         if (osType === "windows") {
-          spssPath = savedSpss || "C:\\Program Files\\IBM\\SPSS Statistics\\28\\stats.exe";
+          spssPath = savedSpss || config.spssPath;
           dataPath = savedData || "C:\\Data\\example.sav";
         } else {
           spssPath = savedSpss || "/Applications/IBM SPSS Statistics/SPSS Statistics.app/Contents/MacOS/stats";

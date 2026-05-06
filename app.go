@@ -10,6 +10,13 @@ import (
 	"spss-executor-go/backend"
 )
 
+type AppConfig struct {
+	ServerUrl string `json:"serverUrl"`
+	SpssPath  string `json:"spssPath"`
+	LlmModel  string `json:"llmModel"`
+	ApiKey    string `json:"apiKey"`
+}
+
 // App struct
 type App struct {
 	ctx    context.Context
@@ -51,6 +58,11 @@ func (a *App) GetDevEnvironment() map[string]string {
 		"os":   runtime.GOOS,
 		"arch": runtime.GOARCH,
 	}
+}
+
+// GetAppConfig returns the configuration for the frontend
+func (a *App) GetAppConfig() AppConfig {
+	return getAppConfig()
 }
 
 // SelectSPSSBinary opens a native file dialog and returns the path to the selected executable
