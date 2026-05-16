@@ -295,6 +295,28 @@
     }
   }
 
+  async function syncMetadata() {
+    if (!spssPath || !dataPath) {
+      addLog("error", "SPSS Path and Data Path are required to sync metadata.");
+      return;
+    }
+    isConnected = true;
+    statusText = "Syncing Metadata...";
+    addLog("system", "Force Fetching Data Dictionary locally...");
+    
+    try {
+      const fetchResult = await FetchDictionary(spssPath, dataPath, usePD, vmName);
+      workingNote = "DATA DICTIONARY / METADATA:\n" + fetchResult;
+      activeSessionDataPath = dataPath;
+      addLog("success", "Metadata synced successfully.");
+    } catch (err) {
+      addLog("error", "Failed to fetch Dictionary: " + err);
+    } finally {
+      isConnected = false;
+      statusText = "Disconnected";
+    }
+  }
+
   function startNewSession() {
     // If running, kill it
     if (isConnected) {
@@ -323,6 +345,7 @@
         <div class="input-with-button">
           <input id="data" type="text" bind:value={dataPath} disabled={isConnected || activeSessionDataPath !== ""} />
           <button class="btn-select" on:click={handleSelectData} disabled={isConnected || activeSessionDataPath !== ""}>Select</button>
+          <button class="btn-sync" on:click={syncMetadata} disabled={isConnected} title="Force refresh metadata from file">🔄</button>
         </div>
       </div>
 
@@ -689,6 +712,27 @@
   }
 
   .btn-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-sync {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 6px;
+    padding: 0 10px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+  }
+
+  .btn-sync:hover:not(:disabled) {
+    background-color: #45475a;
+    border-color: #89b4fa;
+  }
+
+  .btn-sync:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
