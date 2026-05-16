@@ -175,22 +175,38 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 		}
 	}()
 
+	var isCancelOrTimeout bool
+
 	select {
 	case <-done:
 		// File written successfully
 	case <-ctx.Done():
-		return "", fmt.Errorf("execution cancelled by context")
+		isCancelOrTimeout = true
 	case <-time.After(5 * time.Minute):
-		return "", fmt.Errorf("SPSS execution timed out after 5 minutes waiting for output.txt")
+		isCancelOrTimeout = true
 	}
 
 	// Cleanup process
 	if !isWindows && !usePD {
+		// Mac 'open -a' hangs indefinitely even on success, so we always kill it
 		exec.Command("pkill", "-9", "-f", "SPSS Statistics").Run()
-	} else if isWindows && !usePD {
-		exec.Command("taskkill", "/F", "/IM", "stats.exe").Run()
-	} else if usePD {
-		exec.Command("prlctl", "exec", vmName, "cmd.exe", "/c", "taskkill /F /IM stats.exe").Run()
+	} else if isCancelOrTimeout {
+		// On Windows, only taskkill if we cancelled or timed out.
+		// If it's a successful run, stats.exe will close naturally, preserving other open instances.
+		if isWindows && !usePD {
+			exec.Command("taskkill", "/F", "/IM", "stats.exe").Run()
+		} else if usePD {
+			exec.Command("prlctl", "exec", vmName, "cmd.exe", "/c", "taskkill /F /IM stats.exe").Run()
+		}
+	}
+
+	if isCancelOrTimeout {
+		select {
+		case <-ctx.Done():
+			return "", fmt.Errorf("execution cancelled by context")
+		default:
+			return "", fmt.Errorf("SPSS execution timed out after 5 minutes waiting for output.txt")
+		}
 	}
 
 	go cmd.Wait() // reap zombie process without blocking

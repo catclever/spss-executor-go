@@ -276,10 +276,20 @@
     }
   }
 
-  async function copyToClipboard(text: string) {
+  async function copyToClipboard(text: string, target: EventTarget | null = null) {
     try {
       await navigator.clipboard.writeText(text);
-      // Optional visual feedback
+      if (target instanceof HTMLElement) {
+        const originalText = target.innerText;
+        target.innerText = "Copied!";
+        target.style.backgroundColor = "#a6e3a1";
+        target.style.color = "#11111b";
+        setTimeout(() => {
+          target.innerText = originalText;
+          target.style.backgroundColor = "";
+          target.style.color = "";
+        }, 1500);
+      }
     } catch (err) {
       console.error("Failed to copy", err);
     }
@@ -428,7 +438,7 @@
           <span class="tag">{log.type.toUpperCase().replace("-", " ")}</span>
           <span class="log-time">[{log.time}]</span>
           {#if log.type === 'syntax' || log.type === 'final-syntax'}
-            <button class="btn-copy" on:click={() => copyToClipboard(log.text)}>Copy</button>
+            <button class="btn-copy" on:click={(e) => copyToClipboard(log.text, e.currentTarget)}>Copy</button>
           {/if}
         </div>
         
