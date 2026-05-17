@@ -157,7 +157,12 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 		return "", fmt.Errorf("failed to start SPSS fallback command: %w", err)
 	}
 
-	done := make(chan struct{})
+	cmdDone := make(chan error, 1)
+	go func() {
+		cmdDone <- cmd.Wait()
+	}()
+
+	watchdogDone := make(chan struct{})
 	go func() {
 		for {
 			select {
@@ -166,7 +171,7 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 			default:
 				if b, err := os.ReadFile(outputTxtPath); err == nil {
 					if strings.Contains(string(b), "AGENT_EXECUTION_COMPLETE") {
-						close(done)
+						close(watchdogDone)
 						return
 					}
 				}
@@ -175,22 +180,24 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 		}
 	}()
 
-	var isCancelOrTimeout bool
+	var isTimeout bool
 
 	select {
-	case <-done:
-		// File written successfully
+	case <-cmdDone:
+		// Process exited naturally (Windows stats.exe usually does this, even on syntax errors)
+	case <-watchdogDone:
+		// Output contains completion marker (Mac needs this because open -W hangs indefinitely)
 	case <-ctx.Done():
-		isCancelOrTimeout = true
+		isTimeout = true
 	case <-time.After(5 * time.Minute):
-		isCancelOrTimeout = true
+		isTimeout = true
 	}
 
 	// Cleanup process
 	if !isWindows && !usePD {
 		// Mac 'open -a' hangs indefinitely even on success, so we always kill it
 		exec.Command("pkill", "-9", "-f", "SPSS Statistics").Run()
-	} else if isCancelOrTimeout {
+	} else if isTimeout {
 		// On Windows, only taskkill if we cancelled or timed out.
 		// If it's a successful run, stats.exe will close naturally, preserving other open instances.
 		if isWindows && !usePD {
@@ -200,7 +207,7 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 		}
 	}
 
-	if isCancelOrTimeout {
+	if isTimeout {
 		select {
 		case <-ctx.Done():
 			return "", fmt.Errorf("execution cancelled by context")
@@ -209,12 +216,22 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 		}
 	}
 
-	go cmd.Wait() // reap zombie process without blocking
+	// Ensure we wait for the process to truly exit if we killed it
+	go func() { <-cmdDone }()
 
-	// Read the final file
-	outputBytes, readErr := os.ReadFile(outputTxtPath)
+	// Robustly read outputTxtPath with retries (fixes the Windows file lock issue where stats.exe exits but file is still closing)
+	var outputBytes []byte
+	var readErr error
+	for i := 0; i < 10; i++ { // Retry for up to 5 seconds
+		outputBytes, readErr = os.ReadFile(outputTxtPath)
+		if readErr == nil {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
 	if readErr != nil {
-		return "", fmt.Errorf("failed to read SPSS output file after completion: %v", readErr)
+		return "", fmt.Errorf("failed to read SPSS output file after completion (file may be locked or not created): %v", readErr)
 	}
 	return string(outputBytes), nil
 }
