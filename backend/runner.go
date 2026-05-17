@@ -39,7 +39,19 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 		effectiveOutputPath = "\\\\Mac\\Host" + strings.ReplaceAll(outputTxtPath, "/", "\\")
 	}
 
-	// 2. Prepare the syntax with injected GET FILE, PRINTBACK prevention, and OMS
+	// 2. Determine OS
+	isWindows := strings.HasSuffix(strings.ToLower(spssExePath), ".exe")
+
+	// 3. TRY COM AUTOMATION FIRST (Windows natively or Parallels)
+	if isWindows || usePD {
+		comOutput, err := runSPSS_COM(ctx, agentSyntax, effectiveOutputPath, outputTxtPath, usePD, vmName)
+		if err == nil {
+			return comOutput, nil
+		}
+		// If ERROR_NOT_RUNNING, it simply continues to fallback below.
+	}
+
+	// 4. Prepare the fallback syntax with injected GET FILE, PRINTBACK prevention, and OMS
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("GET FILE='%s'.\n", effectiveDataPath))
 	sb.WriteString("SET PRINTBACK=YES.\n")
@@ -57,10 +69,9 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 		return "", fmt.Errorf("failed to write syntax file: %w", err)
 	}
 
-	// 3. Determine Execution Path (statisticsb vs stats -production silent)
+	// 5. Determine Execution Path (statisticsb vs stats -production silent)
 	var cmd *exec.Cmd
 
-	isWindows := strings.HasSuffix(strings.ToLower(spssExePath), ".exe")
 	batchExeName := "statisticsb"
 	if isWindows {
 		batchExeName = "statisticsb.exe"
@@ -235,3 +246,83 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 	}
 	return string(outputBytes), nil
 }
+
+// runSPSS_COM attempts to execute the syntax in an already running SPSS instance via Windows COM (OLE) Automation.
+func runSPSS_COM(ctx context.Context, agentSyntax, effectiveOutputPath, outputTxtPath string, usePD bool, vmName string) (string, error) {
+	tempDir := filepath.Dir(outputTxtPath)
+
+	vbsContent := `On Error Resume Next
+Set objSpss = GetObject(,"SPSS.Application")
+If Err.Number <> 0 Then
+    Set objSpss = GetObject(,"SPSS.Application16")
+    If Err.Number <> 0 Then
+        WScript.Echo "ERROR_NOT_RUNNING"
+        WScript.Quit 1
+    End If
+End If
+Err.Clear
+
+Dim fso, inFile
+Set fso = CreateObject("Scripting.FileSystemObject")
+Set inFile = fso.OpenTextFile(WScript.Arguments(0), 1)
+syntax = inFile.ReadAll
+inFile.Close
+
+objSpss.ExecuteCommands syntax, True
+WScript.Quit 0
+`
+	vbsPath := filepath.Join(tempDir, "run_com.vbs")
+	if err := os.WriteFile(vbsPath, []byte(vbsContent), 0644); err != nil {
+		return "", err
+	}
+
+	// Create syntax without GET FILE and FINISH, but keep OMS
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("OMS /SELECT ALL /DESTINATION FORMAT=TEXT OUTFILE='%s'.\n", effectiveOutputPath))
+	sb.WriteString("EXECUTE.\n\n")
+	sb.WriteString(agentSyntax)
+	sb.WriteString("\nOMSEND.\n")
+	syntaxContent := sb.String()
+	
+	syntaxFilePath := filepath.Join(tempDir, "com_script.sps")
+	if err := os.WriteFile(syntaxFilePath, []byte(syntaxContent), 0644); err != nil {
+		return "", err
+	}
+
+	var cmd *exec.Cmd
+	if usePD {
+		pdVbsPath := "\\\\Mac\\Host" + strings.ReplaceAll(vbsPath, "/", "\\")
+		pdSyntaxPath := "\\\\Mac\\Host" + strings.ReplaceAll(syntaxFilePath, "/", "\\")
+		cmd = exec.CommandContext(ctx, "prlctl", "exec", vmName, "cscript.exe", "//Nologo", pdVbsPath, pdSyntaxPath)
+	} else {
+		cmd = exec.CommandContext(ctx, "cscript.exe", "//Nologo", vbsPath, syntaxFilePath)
+	}
+
+	out, err := cmd.CombinedOutput()
+	outputStr := string(out)
+
+	if err != nil {
+		if strings.Contains(outputStr, "ERROR_NOT_RUNNING") {
+			return "", fmt.Errorf("ERROR_NOT_RUNNING")
+		}
+		return "", fmt.Errorf("COM execution failed: %v\nOutput: %s", err, outputStr)
+	}
+
+	// Read outputTxtPath
+	var outputBytes []byte
+	var readErr error
+	for i := 0; i < 10; i++ { // Retry for up to 5 seconds
+		outputBytes, readErr = os.ReadFile(outputTxtPath)
+		if readErr == nil {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	if readErr != nil {
+		return "", fmt.Errorf("failed to read COM output file: %v", readErr)
+	}
+
+	return string(outputBytes), nil
+}
+
