@@ -48,7 +48,44 @@ func RunSPSS(ctx context.Context, spssExePath, dataFilePath, agentSyntax string,
 		if err == nil {
 			return comOutput, nil
 		}
-		// If ERROR_NOT_RUNNING, it simply continues to fallback below.
+		
+		if strings.Contains(err.Error(), "ERROR_NOT_RUNNING") {
+			// SPSS is not running. Launch it in the foreground with the dataset!
+			var launchCmd *exec.Cmd
+			if usePD {
+				launchCmd = exec.CommandContext(ctx, "prlctl", "exec", vmName, spssExePath, effectiveDataPath)
+			} else {
+				launchCmd = exec.CommandContext(ctx, spssExePath, effectiveDataPath)
+			}
+			
+			if startErr := launchCmd.Start(); startErr == nil {
+				// Wait for COM object to become available and dataset to load (poll for up to 30 seconds)
+				var finalComOutput string
+				var finalComErr error
+				success := false
+				for i := 0; i < 30; i++ {
+					time.Sleep(1 * time.Second)
+					// Try COM again. No need to prepend GET FILE because we launched it with the file argument
+					finalComOutput, finalComErr = runSPSS_COM(ctx, agentSyntax, effectiveOutputPath, outputTxtPath, usePD, vmName)
+					if finalComErr == nil {
+						success = true
+						break
+					}
+					if !strings.Contains(finalComErr.Error(), "ERROR_NOT_RUNNING") {
+						// COM succeeded to connect but execution failed (e.g., syntax error)
+						// In this case, we break and return the actual error output
+						success = true
+						break
+					}
+				}
+				if success {
+					// We return it even if there's a syntax error, because the file read should contain the error
+					return finalComOutput, nil
+				}
+			}
+		}
+		
+		// If it still fails, gracefully fallback to the background CLI mechanism
 	}
 
 	// 4. Prepare the fallback syntax with injected GET FILE, PRINTBACK prevention, and OMS
